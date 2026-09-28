@@ -4,7 +4,7 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `7142651` — wall-mounted decorative spheres
+**Tip:** `47f8799` — swap left/right controls
 
 ## Done
 
