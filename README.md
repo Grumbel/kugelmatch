@@ -9,7 +9,7 @@ Two backends, same scene and rules:
 | `--cpu` (default) | Multi-threaded software raytracer (SDL2 texture) |
 | `--gpu` | Full raytracing in an OpenGL **fragment shader** (fullscreen triangle, **no scene meshes**) |
 
-Shared look: checkerboard floor + walls, reflective **mirror ball**, camera locked to the player paddle looking down the playfield. Resolution **640×480**.
+Shared look: checkerboard floor + walls, reflective **mirror ball**, camera locked to the player paddle looking down the playfield. CPU: **640×480**; GPU: full window resolution.
 
 ## Controls
 
@@ -64,7 +64,7 @@ cmake --build . -j
 - Short **camera shake** on collisions (stronger for player paddle hits)
 - Mute (M), master volume (+/−), serve delay after points, ball impact flash
 - Soft vignette on both backends; FPS in window title
-- Resizable window; internal RT stays **640×480**, letterboxed/scaled to the window
+- Resizable window; **CPU** stays 640×480 (letterboxed), **GPU** raytraces at native drawable resolution
 - Desktop fullscreen via F11 / Alt+Enter
 
 License: GPLv3+

@@ -5,12 +5,13 @@
 #include "scene.hpp"
 #include <SDL.h>
 
-// OpenGL fragment-shader raytracer. Renders into a fixed 640×480 FBO, then
-// letterboxes to the window. Full analytic RT — no scene meshes.
+// OpenGL fragment-shader raytracer at the window's drawable resolution.
+// Full analytic RT — no scene meshes.
 class GpuRaytracer {
 public:
-    static constexpr int WIDTH = 640;
-    static constexpr int HEIGHT = 480;
+    // Default window size (also used before the first resize query)
+    static constexpr int DEFAULT_WIDTH = 640;
+    static constexpr int DEFAULT_HEIGHT = 480;
 
     static constexpr int MAX_SPHERES = 8;
     static constexpr int MAX_BOXES = 4;
@@ -21,9 +22,11 @@ public:
 
     bool init(SDL_Window* window);
     void render(const Scene& scene, const Camera& cam);
-    void present(); // letterbox blit + swap
+    void present();
     void onResize(int windowW, int windowH);
 
+    int width() const { return rtW_; }
+    int height() const { return rtH_; }
     bool ready() const { return ready_; }
 
 private:
@@ -31,15 +34,12 @@ private:
     SDL_GLContext glctx_ = nullptr;
     unsigned program_ = 0;
     unsigned vao_ = 0;
-    unsigned fbo_ = 0;
-    unsigned colorTex_ = 0;
-    int winW_ = WIDTH;
-    int winH_ = HEIGHT;
+    int rtW_ = DEFAULT_WIDTH;
+    int rtH_ = DEFAULT_HEIGHT;
     bool ready_ = false;
 
     bool loadShaders();
-    bool createFbo();
     static unsigned compileShader(unsigned type, const char* source);
     void uploadScene(const Scene& scene, const Camera& cam) const;
-    void letterboxDst(int& dx, int& dy, int& dw, int& dh) const;
+    void syncDrawableSize();
 };

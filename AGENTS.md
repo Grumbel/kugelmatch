@@ -4,7 +4,7 @@
 
 Raytraced Pong (KugelMatch). Classic 90s checkerboard + mirror-ball look.
 Camera is attached to the player paddle and looks down the playfield.
-Resolution fixed at 640×480.
+CPU backend: 640×480. GPU backend: native window/drawable resolution.
 
 Two render backends:
 
