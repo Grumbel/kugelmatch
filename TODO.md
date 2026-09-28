@@ -4,15 +4,13 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `863a9f8` — resize + fullscreen (F11 / Alt+Enter)
+**Tip:** `da45eb7` — fix GLSL reserved word `half`
 
 ## Done
 
 - [x] Dual CPU/GPU raytracer backends
-- [x] Procedural audio, mute/volume, camera shake
-- [x] Serve delay, impact flash, vignette, FPS HUD
-- [x] Resizable window with letterboxed 640×480 presentation
-- [x] Desktop fullscreen (F11, Alt+Enter)
+- [x] Audio, shake, polish, resize/fullscreen
+- [x] Fix GLSL compile: rename `half` → `halfExtent`
 
 ## Open / follow-ups
 
@@ -24,13 +22,11 @@ Base of this work line: `a7bcc21` (Initial checkin)
 ## Bundle naming for this stack
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-003.1-polish-a7bcc21.bundle`
-Next: `kugelmatch-004.1-resize-fullscreen-a7bcc21.bundle`
+Previous: `kugelmatch-004.1-resize-fullscreen-a7bcc21.bundle`
+Next: `kugelmatch-005.1-fix-glsl-half-a7bcc21.bundle`
 
 ## Notes for next agent
 
-- Internal resolution is always 640×480. Never scale the ray count with the window.
-- GPU: FBO + `glBlitFramebuffer` letterbox in `present()`; track drawable size for HiDPI.
-- CPU: `SDL_RenderSetLogicalSize(640,480)`.
-- Fullscreen uses `SDL_WINDOW_FULLSCREEN_DESKTOP` (borderless), not exclusive mode.
+- Avoid GLSL reserved names (`half`, `fixed`, `input`, etc.) in shaders.
+- Always regenerate `src/embedded_frag.inc` when editing `shaders/raytrace.frag`.
 - After a new tip bundle, delete superseded intermediate bundles for this project.
