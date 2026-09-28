@@ -45,12 +45,15 @@ void Audio::shutdown() {
     ready_ = false;
 }
 
+void Audio::setMasterVolume(float v) {
+    master_.store(std::max(0.0f, std::min(1.0f, v)));
+}
+
 void Audio::playClank(float pitch, float volume) {
-    if (!ready_) {
+    if (!ready_ || muted_.load()) {
         return;
     }
     std::lock_guard<std::mutex> lock(mutex_);
-    // Prefer a free voice; otherwise steal the quietest
     int best = -1;
     float bestEnv = 1e9f;
     for (int i = 0; i < MAX_VOICES; ++i) {
@@ -73,12 +76,12 @@ void Audio::playClank(float pitch, float volume) {
     v.pitch = std::max(0.4f, std::min(2.0f, pitch));
     v.volume = std::max(0.0f, std::min(1.0f, volume));
     v.noiseState = 0.5f;
-    v.samplesLeft = static_cast<int>(spec_.freq * 0.18f); // ~180 ms
+    v.samplesLeft = static_cast<int>(spec_.freq * 0.18f);
     v.soft = false;
 }
 
 void Audio::playSoftThud(float pitch, float volume) {
-    if (!ready_) {
+    if (!ready_ || muted_.load()) {
         return;
     }
     std::lock_guard<std::mutex> lock(mutex_);
@@ -108,12 +111,16 @@ void SDLCALL Audio::callback(void* userdata, Uint8* stream, int len) {
     auto* out = reinterpret_cast<float*>(stream);
     int frames = len / static_cast<int>(sizeof(float));
     std::memset(stream, 0, static_cast<size_t>(len));
+    if (self->muted_.load()) {
+        return;
+    }
     self->mix(out, frames);
 }
 
 void Audio::mix(float* out, int frames) {
     std::lock_guard<std::mutex> lock(mutex_);
     const float invFreq = 1.0f / static_cast<float>(spec_.freq);
+    const float master = master_.load();
 
     for (int i = 0; i < frames; ++i) {
         float sample = 0.0f;
@@ -122,7 +129,6 @@ void Audio::mix(float* out, int frames) {
                 continue;
             }
 
-            // Metallic: two partials + bit of filtered noise, fast exponential decay
             float f1 = (v.soft ? 180.0f : 420.0f) * v.pitch;
             float f2 = (v.soft ? 90.0f : 980.0f) * v.pitch;
             float f3 = (v.soft ? 60.0f : 1550.0f) * v.pitch;
@@ -136,7 +142,6 @@ void Audio::mix(float* out, int frames) {
                 v.phase2 -= 2.0 * 3.141592653589793;
             }
 
-            // Cheap LFSR-ish noise
             v.noiseState = v.noiseState * 1.0003f + 0.13f;
             if (v.noiseState > 1.0f) {
                 v.noiseState -= 1.0f + static_cast<float>(static_cast<int>(v.noiseState));
@@ -149,18 +154,15 @@ void Audio::mix(float* out, int frames) {
                 0.15 * std::sin(2.0 * 3.141592653589793 * static_cast<double>(f3) *
                                 static_cast<double>(v.samplesLeft) * invFreq));
 
-            // Ring-mod noise for metallic edge
             float metallic = tone * (0.7f + 0.3f * noise) + noise * (v.soft ? 0.05f : 0.18f);
 
-            // Envelope: fast attack already at 1, exponential decay
             float decay = v.soft ? 0.9992f : 0.9985f;
             v.env *= decay;
 
-            sample += metallic * v.env * v.volume * 0.35f;
+            sample += metallic * v.env * v.volume * 0.35f * master;
             --v.samplesLeft;
         }
 
-        // Soft clip
         if (sample > 1.0f) {
             sample = 1.0f;
         } else if (sample < -1.0f) {

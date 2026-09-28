@@ -3,6 +3,7 @@
 #pragma once
 
 #include <SDL.h>
+#include <atomic>
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -16,9 +17,17 @@ public:
     bool init();
     void shutdown();
 
-    // pitch: 0.7–1.4 typical; volume: 0–1
+    // pitch: 0.7–1.4 typical; volume: 0–1 (scaled by master)
     void playClank(float pitch = 1.0f, float volume = 0.7f);
     void playSoftThud(float pitch = 1.0f, float volume = 0.4f);
+
+    void setMuted(bool muted) { muted_.store(muted); }
+    bool muted() const { return muted_.load(); }
+    void toggleMute() { muted_.store(!muted_.load()); }
+
+    // 0–1 master gain
+    void setMasterVolume(float v);
+    float masterVolume() const { return master_.load(); }
 
     bool ready() const { return ready_; }
 
@@ -29,6 +38,9 @@ private:
     SDL_AudioDeviceID device_ = 0;
     SDL_AudioSpec spec_{};
     bool ready_ = false;
+
+    std::atomic<bool> muted_{false};
+    std::atomic<float> master_{0.85f};
 
     struct Voice {
         double phase = 0.0;
