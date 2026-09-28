@@ -1,62 +1,61 @@
 # KugelMatch
 
-Classic Pong reimagined as a **90s-style software raytracer**.
+Classic Pong reimagined as a **90s-style raytracer**.
 
-- **SDL2** window + software framebuffer (no GPU)
-- Pure CPU raytracer with multi-threading
-- Checkerboard floor + walls, reflective **mirror ball**
-- Camera locked to the player paddle, looking down the playfield
-- Resolution: **640×480**
-- Build system: **Nix flake** + **CMake**
+Two backends, same scene and rules:
+
+| Flag | Backend |
+|------|---------|
+| `--cpu` (default) | Multi-threaded software raytracer (SDL2 texture) |
+| `--gpu` | Full raytracing in an OpenGL **fragment shader** (fullscreen triangle, **no scene meshes**) |
+
+Shared look: checkerboard floor + walls, reflective **mirror ball**, camera locked to the player paddle looking down the playfield. Resolution **640×480**.
 
 ## Controls
 
-| Key            | Action              |
-|----------------|---------------------|
-| ← / → or A / D | Move paddle         |
-| R              | Reset scores + ball |
-| P              | Pause               |
-| ESC            | Quit                |
+| Key | Action |
+|-----|--------|
+| ← / → or A / D | Move paddle |
+| R | Reset scores + ball |
+| P | Pause |
+| ESC | Quit |
 
-## Build with Nix (recommended)
+## Build with Nix
 
 ```bash
-# Enter dev shell
 nix develop
-
-# Configure & build
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
-
-# Run
-./kugelmatch
+./kugelmatch          # CPU
+./kugelmatch --gpu    # GPU
 ```
 
-Or build the package directly:
+Or:
 
 ```bash
 nix build
-./result/bin/kugelmatch
+./result/bin/kugelmatch --gpu
 ```
 
 ## Build without Nix
 
-Requirements: CMake ≥ 3.16, SDL2, C++17 compiler, pthread.
+Needs: CMake ≥ 3.16, SDL2, OpenGL, C++17, pthread.
 
 ```bash
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
-./kugelmatch
+./kugelmatch [--cpu|--gpu]
 ```
 
 ## Technical notes
 
-- Ray-sphere, ray-AABB and ray-plane intersections
-- Up to 3 levels of reflection (mirror ball is highly reflective)
-- Soft shadows + Blinn-style specular
-- Multi-threaded scanline rendering (`std::thread` + atomic work queue)
-- Gamma-corrected output into ARGB8888 SDL texture
+- Analytic ray–sphere, ray–AABB, ray–plane intersections on both backends
+- Up to 3 reflection bounces; mirror ball is highly reflective
+- Soft shadow term + Blinn-style specular
+- CPU: `std::thread` + atomic row queue
+- GPU: GLSL 330 core fragment shader; scene uploaded as uniform arrays (no meshes)
+- Shaders live in `shaders/`; an embedded copy is compiled in as fallback
 
-Enjoy the classic reflective sphere bouncing across the checkerboard.
+License: GPLv3+

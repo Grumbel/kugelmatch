@@ -1,11 +1,18 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright 2024–2026 Ingo Ruhnke <grumbel@gmail.com>
 #pragma once
+
+#include "gpu_raytracer.hpp"
 #include "raytracer.hpp"
+#include "scene.hpp"
 #include <SDL.h>
-#include <string>
+#include <memory>
+
+enum class RenderBackend { Cpu, Gpu };
 
 class Game {
 public:
-    Game();
+    explicit Game(RenderBackend backend);
     ~Game();
 
     bool init();
@@ -13,32 +20,33 @@ public:
     void shutdown();
 
 private:
-    SDL_Window* window = nullptr;
-    SDL_Renderer* renderer = nullptr;
-    SDL_Texture* texture = nullptr;
-    uint32_t* framebuffer = nullptr;
+    RenderBackend backend_;
 
-    Raytracer rt;
-    Scene scene;
+    SDL_Window* window_ = nullptr;
+    SDL_Renderer* sdlRenderer_ = nullptr; // CPU path only
+    SDL_Texture* texture_ = nullptr;      // CPU path only
+    uint32_t* framebuffer_ = nullptr;     // CPU path only
 
-    // Game state (playfield in XZ, Y is up)
-    // Player paddle at near end (negative Z), AI at far end (positive Z)
-    float playerX = 0.0f;
-    float aiX = 0.0f;
-    float ballX = 0.0f;
-    float ballZ = 0.0f;
-    float ballVX = 0.0f;
-    float ballVZ = 0.0f;
+    CpuRaytracer cpuRt_;
+    GpuRaytracer gpuRt_;
+    Scene scene_;
+    Camera camera_;
 
-    int playerScore = 0;
-    int aiScore = 0;
+    float playerX_ = 0.0f;
+    float aiX_ = 0.0f;
+    float ballX_ = 0.0f;
+    float ballZ_ = 0.0f;
+    float ballVX_ = 0.0f;
+    float ballVZ_ = 0.0f;
 
-    bool running = false;
-    bool paused = false;
+    int playerScore_ = 0;
+    int aiScore_ = 0;
 
-    // Playfield dimensions
-    static constexpr float FIELD_W = 8.0f;   // X extent (-4 .. +4)
-    static constexpr float FIELD_L = 16.0f;  // Z extent (0 near player .. 16 far)
+    bool running_ = false;
+    bool paused_ = false;
+
+    static constexpr float FIELD_W = 8.0f;
+    static constexpr float FIELD_L = 16.0f;
     static constexpr float PADDLE_W = 1.6f;
     static constexpr float PADDLE_H = 0.4f;
     static constexpr float PADDLE_D = 0.3f;
@@ -49,6 +57,6 @@ private:
     void update(float dt);
     void handleInput(float dt);
     void buildScene();
-    void present();
-    void drawHUD();
+    void presentCpu();
+    void updateHud();
 };

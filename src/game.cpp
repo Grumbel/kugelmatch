@@ -1,13 +1,15 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright 2024–2026 Ingo Ruhnke <grumbel@gmail.com>
 #include "game.hpp"
-#include <cstdio>
-#include <cmath>
-#include <cstdlib>
-#include <ctime>
-#include <cstring>
-#include <algorithm>
-#include <string>
 
-Game::Game() {
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
+
+Game::Game(RenderBackend backend) : backend_(backend) {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
 }
 
@@ -16,86 +18,99 @@ Game::~Game() {
 }
 
 bool Game::init() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+    Uint32 sdlFlags = SDL_INIT_VIDEO | SDL_INIT_TIMER;
+    if (SDL_Init(sdlFlags) != 0) {
         std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
 
-    window = SDL_CreateWindow(
-        "KugelMatch - Checkerboard + Mirror Ball",
+    Uint32 winFlags = SDL_WINDOW_SHOWN;
+    if (backend_ == RenderBackend::Gpu) {
+        winFlags |= SDL_WINDOW_OPENGL;
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    }
+
+    window_ = SDL_CreateWindow(
+        "KugelMatch",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        Raytracer::WIDTH, Raytracer::HEIGHT,
-        SDL_WINDOW_SHOWN
-    );
-    if (!window) {
+        CpuRaytracer::WIDTH, CpuRaytracer::HEIGHT,
+        winFlags);
+    if (!window_) {
         std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
         return false;
     }
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!renderer) {
-        // Fallback without vsync / accelerated
-        renderer = SDL_CreateRenderer(window, -1, 0);
+    if (backend_ == RenderBackend::Gpu) {
+        if (!gpuRt_.init(window_)) {
+            std::fprintf(stderr, "GPU raytracer init failed.\n");
+            return false;
+        }
+    } else {
+        sdlRenderer_ = SDL_CreateRenderer(
+            window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        if (!sdlRenderer_) {
+            sdlRenderer_ = SDL_CreateRenderer(window_, -1, 0);
+        }
+        if (!sdlRenderer_) {
+            std::fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
+            return false;
+        }
+        texture_ = SDL_CreateTexture(
+            sdlRenderer_,
+            SDL_PIXELFORMAT_ARGB8888,
+            SDL_TEXTUREACCESS_STREAMING,
+            CpuRaytracer::WIDTH, CpuRaytracer::HEIGHT);
+        if (!texture_) {
+            std::fprintf(stderr, "SDL_CreateTexture failed: %s\n", SDL_GetError());
+            return false;
+        }
+        framebuffer_ = new uint32_t[CpuRaytracer::WIDTH * CpuRaytracer::HEIGHT];
+        std::memset(framebuffer_, 0, sizeof(uint32_t) * CpuRaytracer::WIDTH * CpuRaytracer::HEIGHT);
     }
-    if (!renderer) {
-        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
-        return false;
-    }
 
-    texture = SDL_CreateTexture(
-        renderer,
-        SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        Raytracer::WIDTH, Raytracer::HEIGHT
-    );
-    if (!texture) {
-        std::fprintf(stderr, "SDL_CreateTexture failed: %s\n", SDL_GetError());
-        return false;
-    }
+    playerX_ = 0.0f;
+    aiX_ = 0.0f;
+    resetBall(false);
 
-    framebuffer = new uint32_t[Raytracer::WIDTH * Raytracer::HEIGHT];
-    std::memset(framebuffer, 0, sizeof(uint32_t) * Raytracer::WIDTH * Raytracer::HEIGHT);
+    scene_.lightPos = Vec3(0.0f, 6.0f, 8.0f);
+    scene_.lightColor = Vec3(1.2f, 1.15f, 1.05f);
+    scene_.ambient = Vec3(0.12f, 0.12f, 0.15f);
+    scene_.skyColor = Vec3(0.02f, 0.02f, 0.05f);
 
-    // Initial game state
-    playerX = 0.0f;
-    aiX = 0.0f;
-    resetBall(false); // serve toward AI
-
-    scene.lightPos = Vec3(0.0f, 6.0f, 8.0f);
-    scene.lightColor = Vec3(1.2f, 1.15f, 1.05f);
-    scene.ambient = Vec3(0.12f, 0.12f, 0.15f);
-    scene.skyColor = Vec3(0.02f, 0.02f, 0.05f);
-
-    running = true;
+    running_ = true;
     return true;
 }
 
 void Game::shutdown() {
-    if (framebuffer) {
-        delete[] framebuffer;
-        framebuffer = nullptr;
+    if (framebuffer_) {
+        delete[] framebuffer_;
+        framebuffer_ = nullptr;
     }
-    if (texture) {
-        SDL_DestroyTexture(texture);
-        texture = nullptr;
+    if (texture_) {
+        SDL_DestroyTexture(texture_);
+        texture_ = nullptr;
     }
-    if (renderer) {
-        SDL_DestroyRenderer(renderer);
-        renderer = nullptr;
+    if (sdlRenderer_) {
+        SDL_DestroyRenderer(sdlRenderer_);
+        sdlRenderer_ = nullptr;
     }
-    if (window) {
-        SDL_DestroyWindow(window);
-        window = nullptr;
+    // GpuRaytracer destructor cleans GL context
+    if (window_) {
+        SDL_DestroyWindow(window_);
+        window_ = nullptr;
     }
     SDL_Quit();
 }
 
 void Game::resetBall(bool towardPlayer) {
-    ballX = 0.0f;
-    ballZ = FIELD_L * 0.5f;
+    ballX_ = 0.0f;
+    ballZ_ = FIELD_L * 0.5f;
     float speed = 6.5f + (std::rand() % 100) * 0.01f;
-    ballVX = ((std::rand() % 200) - 100) * 0.02f;
-    ballVZ = towardPlayer ? -speed : speed;
+    ballVX_ = ((std::rand() % 200) - 100) * 0.02f;
+    ballVZ_ = towardPlayer ? -speed : speed;
 }
 
 void Game::handleInput(float dt) {
@@ -103,104 +118,98 @@ void Game::handleInput(float dt) {
     float speed = 9.0f;
 
     if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) {
-        playerX += speed * dt;
+        playerX_ -= speed * dt;
     }
     if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) {
-        playerX -= speed * dt;
+        playerX_ += speed * dt;
     }
-    // Clamp paddle
     float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
-    playerX = std::max(-half, std::min(half, playerX));
+    playerX_ = std::max(-half, std::min(half, playerX_));
 
     if (keys[SDL_SCANCODE_R]) {
-        playerScore = 0;
-        aiScore = 0;
+        playerScore_ = 0;
+        aiScore_ = 0;
         resetBall(false);
     }
 }
 
 void Game::update(float dt) {
-    if (paused) return;
+    if (paused_) {
+        return;
+    }
 
-    // AI: simple proportional + a bit of prediction
-    float target = ballX;
-    if (ballVZ > 0.0f) {
-        // Predict roughly when it reaches far end
-        float t = (FIELD_L - ballZ) / std::max(0.1f, ballVZ);
-        target = ballX + ballVX * t * 0.7f;
+    float target = ballX_;
+    if (ballVZ_ > 0.0f) {
+        float t = (FIELD_L - ballZ_) / std::max(0.1f, ballVZ_);
+        target = ballX_ + ballVX_ * t * 0.7f;
     }
     float aiSpeed = 7.5f;
-    if (aiX < target - 0.15f) aiX += aiSpeed * dt;
-    else if (aiX > target + 0.15f) aiX -= aiSpeed * dt;
+    if (aiX_ < target - 0.15f) {
+        aiX_ += aiSpeed * dt;
+    } else if (aiX_ > target + 0.15f) {
+        aiX_ -= aiSpeed * dt;
+    }
     float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
-    aiX = std::max(-half, std::min(half, aiX));
+    aiX_ = std::max(-half, std::min(half, aiX_));
 
-    // Ball motion
-    ballX += ballVX * dt;
-    ballZ += ballVZ * dt;
+    ballX_ += ballVX_ * dt;
+    ballZ_ += ballVZ_ * dt;
 
-    // Side walls
     float wall = FIELD_W * 0.5f - BALL_R;
-    if (ballX < -wall) {
-        ballX = -wall;
-        ballVX = -ballVX;
-    } else if (ballX > wall) {
-        ballX = wall;
-        ballVX = -ballVX;
+    if (ballX_ < -wall) {
+        ballX_ = -wall;
+        ballVX_ = -ballVX_;
+    } else if (ballX_ > wall) {
+        ballX_ = wall;
+        ballVX_ = -ballVX_;
     }
 
-    // Player paddle (near, z ≈ 0)
     float pz = 0.4f;
-    if (ballZ - BALL_R < pz + PADDLE_D * 0.5f && ballZ + BALL_R > pz - PADDLE_D * 0.5f &&
-        ballVZ < 0.0f) {
-        if (ballX + BALL_R > playerX - PADDLE_W * 0.5f &&
-            ballX - BALL_R < playerX + PADDLE_W * 0.5f) {
-            ballZ = pz + PADDLE_D * 0.5f + BALL_R;
-            ballVZ = -ballVZ * 1.05f; // slight speed up
-            // Spin based on hit position
-            float offset = (ballX - playerX) / (PADDLE_W * 0.5f);
-            ballVX += offset * 2.5f;
-            // Clamp speed
-            float sp = std::sqrt(ballVX * ballVX + ballVZ * ballVZ);
+    if (ballZ_ - BALL_R < pz + PADDLE_D * 0.5f && ballZ_ + BALL_R > pz - PADDLE_D * 0.5f &&
+        ballVZ_ < 0.0f) {
+        if (ballX_ + BALL_R > playerX_ - PADDLE_W * 0.5f &&
+            ballX_ - BALL_R < playerX_ + PADDLE_W * 0.5f) {
+            ballZ_ = pz + PADDLE_D * 0.5f + BALL_R;
+            ballVZ_ = -ballVZ_ * 1.05f;
+            float offset = (ballX_ - playerX_) / (PADDLE_W * 0.5f);
+            ballVX_ += offset * 2.5f;
+            float sp = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
             if (sp > 14.0f) {
-                ballVX *= 14.0f / sp;
-                ballVZ *= 14.0f / sp;
+                ballVX_ *= 14.0f / sp;
+                ballVZ_ *= 14.0f / sp;
             }
         }
     }
 
-    // AI paddle (far)
     float az = FIELD_L - 0.4f;
-    if (ballZ + BALL_R > az - PADDLE_D * 0.5f && ballZ - BALL_R < az + PADDLE_D * 0.5f &&
-        ballVZ > 0.0f) {
-        if (ballX + BALL_R > aiX - PADDLE_W * 0.5f &&
-            ballX - BALL_R < aiX + PADDLE_W * 0.5f) {
-            ballZ = az - PADDLE_D * 0.5f - BALL_R;
-            ballVZ = -ballVZ * 1.05f;
-            float offset = (ballX - aiX) / (PADDLE_W * 0.5f);
-            ballVX += offset * 2.5f;
-            float sp = std::sqrt(ballVX * ballVX + ballVZ * ballVZ);
+    if (ballZ_ + BALL_R > az - PADDLE_D * 0.5f && ballZ_ - BALL_R < az + PADDLE_D * 0.5f &&
+        ballVZ_ > 0.0f) {
+        if (ballX_ + BALL_R > aiX_ - PADDLE_W * 0.5f &&
+            ballX_ - BALL_R < aiX_ + PADDLE_W * 0.5f) {
+            ballZ_ = az - PADDLE_D * 0.5f - BALL_R;
+            ballVZ_ = -ballVZ_ * 1.05f;
+            float offset = (ballX_ - aiX_) / (PADDLE_W * 0.5f);
+            ballVX_ += offset * 2.5f;
+            float sp = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
             if (sp > 14.0f) {
-                ballVX *= 14.0f / sp;
-                ballVZ *= 14.0f / sp;
+                ballVX_ *= 14.0f / sp;
+                ballVZ_ *= 14.0f / sp;
             }
         }
     }
 
-    // Scoring
-    if (ballZ < -1.0f) {
-        aiScore++;
+    if (ballZ_ < -1.0f) {
+        aiScore_++;
         resetBall(false);
-    } else if (ballZ > FIELD_L + 1.0f) {
-        playerScore++;
+    } else if (ballZ_ > FIELD_L + 1.0f) {
+        playerScore_++;
         resetBall(true);
     }
 }
 
 void Game::buildScene() {
-    scene.clear();
+    scene_.clear();
 
-    // Classic 90s checkerboard floor
     Plane floor;
     floor.point = Vec3(0, 0, 0);
     floor.normal = Vec3(0, 1, 0);
@@ -209,18 +218,15 @@ void Game::buildScene() {
     floor.colorB = Vec3(0.15f, 0.15f, 0.18f);
     floor.scale = 1.2f;
     floor.reflectivity = 0.15f;
-    scene.planes.push_back(floor);
+    scene_.planes.push_back(floor);
 
-    // Ceiling (dark)
     Plane ceil;
     ceil.point = Vec3(0, WALL_H, 0);
     ceil.normal = Vec3(0, -1, 0);
-    ceil.checker = false;
     ceil.colorA = Vec3(0.08f, 0.08f, 0.1f);
     ceil.reflectivity = 0.05f;
-    scene.planes.push_back(ceil);
+    scene_.planes.push_back(ceil);
 
-    // Back wall (far)
     Plane back;
     back.point = Vec3(0, 0, FIELD_L + 0.5f);
     back.normal = Vec3(0, 0, -1);
@@ -229,9 +235,8 @@ void Game::buildScene() {
     back.colorB = Vec3(0.25f, 0.12f, 0.15f);
     back.scale = 0.8f;
     back.reflectivity = 0.1f;
-    scene.planes.push_back(back);
+    scene_.planes.push_back(back);
 
-    // Left / right walls
     Plane left;
     left.point = Vec3(-FIELD_W * 0.5f - 0.1f, 0, 0);
     left.normal = Vec3(1, 0, 0);
@@ -240,105 +245,111 @@ void Game::buildScene() {
     left.colorB = Vec3(0.12f, 0.18f, 0.28f);
     left.scale = 0.9f;
     left.reflectivity = 0.08f;
-    scene.planes.push_back(left);
+    scene_.planes.push_back(left);
 
     Plane right = left;
     right.point = Vec3(FIELD_W * 0.5f + 0.1f, 0, 0);
     right.normal = Vec3(-1, 0, 0);
-    scene.planes.push_back(right);
+    scene_.planes.push_back(right);
 
-    // Player paddle (near) - metallic
     Box playerPad;
-    playerPad.minb = Vec3(playerX - PADDLE_W * 0.5f, 0.05f, 0.25f);
-    playerPad.maxb = Vec3(playerX + PADDLE_W * 0.5f, 0.05f + PADDLE_H, 0.25f + PADDLE_D);
+    playerPad.minb = Vec3(playerX_ - PADDLE_W * 0.5f, 0.05f, 0.25f);
+    playerPad.maxb = Vec3(playerX_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, 0.25f + PADDLE_D);
     playerPad.color = Vec3(0.7f, 0.75f, 0.9f);
     playerPad.reflectivity = 0.35f;
-    scene.boxes.push_back(playerPad);
+    scene_.boxes.push_back(playerPad);
 
-    // AI paddle
     Box aiPad;
-    aiPad.minb = Vec3(aiX - PADDLE_W * 0.5f, 0.05f, FIELD_L - 0.25f - PADDLE_D);
-    aiPad.maxb = Vec3(aiX + PADDLE_W * 0.5f, 0.05f + PADDLE_H, FIELD_L - 0.25f);
+    aiPad.minb = Vec3(aiX_ - PADDLE_W * 0.5f, 0.05f, FIELD_L - 0.25f - PADDLE_D);
+    aiPad.maxb = Vec3(aiX_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, FIELD_L - 0.25f);
     aiPad.color = Vec3(0.9f, 0.4f, 0.35f);
     aiPad.reflectivity = 0.3f;
-    scene.boxes.push_back(aiPad);
+    scene_.boxes.push_back(aiPad);
 
-    // The mirror ball (the Pong ball)
     Sphere ball;
-    ball.center = Vec3(ballX, BALL_R + 0.02f, ballZ);
+    ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
     ball.radius = BALL_R;
     ball.color = Vec3(0.95f, 0.95f, 1.0f);
-    ball.reflectivity = 0.85f; // strong mirror
-    scene.spheres.push_back(ball);
+    ball.reflectivity = 0.85f;
+    scene_.spheres.push_back(ball);
 
-    // A couple of decorative smaller spheres for classic look (optional fixed)
     Sphere deco1;
     deco1.center = Vec3(-3.2f, 0.5f, 4.0f);
     deco1.radius = 0.5f;
     deco1.color = Vec3(0.9f, 0.6f, 0.2f);
     deco1.reflectivity = 0.6f;
-    scene.spheres.push_back(deco1);
+    scene_.spheres.push_back(deco1);
 
     Sphere deco2;
     deco2.center = Vec3(3.0f, 0.4f, 12.0f);
     deco2.radius = 0.4f;
     deco2.color = Vec3(0.3f, 0.7f, 0.9f);
     deco2.reflectivity = 0.55f;
-    scene.spheres.push_back(deco2);
+    scene_.spheres.push_back(deco2);
 
-    // Light position slightly above center
-    scene.lightPos = Vec3(0.0f, WALL_H - 0.5f, FIELD_L * 0.45f);
+    scene_.lightPos = Vec3(0.0f, WALL_H - 0.5f, FIELD_L * 0.45f);
 }
 
-void Game::present() {
-    SDL_UpdateTexture(texture, nullptr, framebuffer, Raytracer::WIDTH * sizeof(uint32_t));
-    SDL_RenderClear(renderer);
-    SDL_RenderCopy(renderer, texture, nullptr, nullptr);
-    SDL_RenderPresent(renderer);
+void Game::presentCpu() {
+    SDL_UpdateTexture(texture_, nullptr, framebuffer_,
+                      CpuRaytracer::WIDTH * static_cast<int>(sizeof(uint32_t)));
+    SDL_RenderClear(sdlRenderer_);
+    SDL_RenderCopy(sdlRenderer_, texture_, nullptr, nullptr);
+    SDL_RenderPresent(sdlRenderer_);
 }
 
-void Game::drawHUD() {
-    // Title / scores via window title (simple, no TTF dependency)
-    char buf[128];
+void Game::updateHud() {
+    const char* mode = backend_ == RenderBackend::Gpu ? "GPU" : "CPU";
+    char buf[160];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch  |  Player %d  -  %d AI  |  Arrows/A D move  |  R reset  |  ESC quit",
-                  playerScore, aiScore);
-    SDL_SetWindowTitle(window, buf);
+                  "KugelMatch [%s]  |  Player %d  -  %d AI  |  Arrows/A D  |  R reset  |  ESC quit",
+                  mode, playerScore_, aiScore_);
+    SDL_SetWindowTitle(window_, buf);
 }
 
 void Game::run() {
     Uint64 freq = SDL_GetPerformanceFrequency();
     Uint64 last = SDL_GetPerformanceCounter();
 
-    while (running) {
+    while (running_) {
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT) running = false;
+            if (e.type == SDL_QUIT) {
+                running_ = false;
+            }
             if (e.type == SDL_KEYDOWN) {
-                if (e.key.keysym.sym == SDLK_ESCAPE) running = false;
-                if (e.key.keysym.sym == SDLK_p) paused = !paused;
+                if (e.key.keysym.sym == SDLK_ESCAPE) {
+                    running_ = false;
+                }
+                if (e.key.keysym.sym == SDLK_p) {
+                    paused_ = !paused_;
+                }
             }
         }
 
         Uint64 now = SDL_GetPerformanceCounter();
         float dt = static_cast<float>(now - last) / static_cast<float>(freq);
         last = now;
-        // Cap dt to avoid spiral
-        if (dt > 0.05f) dt = 0.05f;
+        if (dt > 0.05f) {
+            dt = 0.05f;
+        }
 
         handleInput(dt);
         update(dt);
         buildScene();
 
         // Camera attached to player paddle, looking down the playfield
-        // Slightly above and behind the paddle, looking toward +Z (AI)
-        Vec3 camPos(playerX, 1.1f, -0.6f);
-        Vec3 lookAt(playerX * 0.3f, 0.6f, FIELD_L * 0.55f); // slight look bias toward center
-        Vec3 up(0, 1, 0);
-        rt.setCamera(camPos, lookAt, up, 70.0f);
+        Vec3 camPos(playerX_, 1.1f, -0.6f);
+        Vec3 lookAt(playerX_ * 0.3f, 0.6f, FIELD_L * 0.55f);
+        camera_.set(camPos, lookAt, Vec3(0, 1, 0), 70.0f);
 
-        rt.render(scene, framebuffer);
-        drawHUD();
-        present();
+        if (backend_ == RenderBackend::Gpu) {
+            gpuRt_.render(scene_, camera_);
+            gpuRt_.present();
+        } else {
+            cpuRt_.render(scene_, camera_, framebuffer_);
+            presentCpu();
+        }
+        updateHud();
     }
 }

@@ -1,5 +1,5 @@
 {
-  description = "Raytraced Pong - SDL2 software raytracer with checkerboard + mirror ball";
+  description = "KugelMatch — raytraced Pong (CPU + GPU fragment-shader backends)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -13,7 +13,7 @@
     {
       packages.${system}.default = pkgs.stdenv.mkDerivation {
         pname = "kugelmatch";
-        version = "1.0.0";
+        version = "1.1.0";
         src = ./.;
 
         nativeBuildInputs = with pkgs; [
@@ -23,6 +23,8 @@
 
         buildInputs = with pkgs; [
           SDL2
+          libGL
+          libglvnd
         ];
 
         cmakeFlags = [
@@ -30,8 +32,11 @@
         ];
 
         installPhase = ''
-          mkdir -p $out/bin
+          runHook preInstall
+          mkdir -p $out/bin $out/share/kugelmatch
           cp kugelmatch $out/bin/
+          cp -r $src/shaders $out/share/kugelmatch/
+          runHook postInstall
         '';
       };
 
@@ -40,6 +45,8 @@
           cmake
           pkg-config
           SDL2
+          libGL
+          libglvnd
           gcc
           gdb
           clang-tools
