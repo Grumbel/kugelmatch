@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2024-2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `1f6064d` — GPU native resolution
+**Tip:**  — REUSE compliance
 
 ## Done
 
@@ -28,7 +28,8 @@ Base of this work line: `a7bcc21` (Initial checkin)
 
 Base short: `a7bcc21`
 Previous: `kugelmatch-008.1-fix-glsl-recursion-a7bcc21.bundle`
-Next: `kugelmatch-009.1-gpu-native-res-a7bcc21.bundle`
+Previous: 
+Next: 
 
 ## Notes for next agent
 
