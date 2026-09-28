@@ -18,6 +18,8 @@ Shared look: checkerboard floor + walls, reflective **mirror ball**, camera lock
 | ← / → or A / D | Move paddle |
 | R | Reset scores + ball |
 | P | Pause |
+| M | Mute / unmute |
+| + / − | Volume up / down |
 | ESC | Quit |
 
 ## Build with Nix
@@ -59,5 +61,7 @@ cmake --build . -j
 - Shaders live in `shaders/`; an embedded copy is compiled in as fallback
 - Procedural **metallic clank** sounds on paddle/wall hits (SDL audio, no sample files)
 - Short **camera shake** on collisions (stronger for player paddle hits)
+- Mute (M), master volume (+/−), serve delay after points, ball impact flash
+- Soft vignette on both backends; FPS in window title
 
 License: GPLv3+
