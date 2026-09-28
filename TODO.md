@@ -4,7 +4,7 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (see latest commit after this update) — metallic clanks + camera shake
+**Tip:** f19c893 — metallic clanks + camera shake
 
 ## Done
 
