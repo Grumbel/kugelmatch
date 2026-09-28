@@ -4,5 +4,5 @@ Upstream-Contact: Ingo Ruhnke <grumbel@gmail.com>
 Source: https://github.com/Grumbel/kugelmatch
 
 Files: flake.lock
-Copyright: 2024-2026 Ingo Ruhnke <grumbel@gmail.com>
+Copyright: 2026 Ingo Ruhnke <grumbel@gmail.com>
 License: GPL-3.0-or-later

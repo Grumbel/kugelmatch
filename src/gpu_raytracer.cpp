@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright 2024–2026 Ingo Ruhnke <grumbel@gmail.com>
+// Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>
 #include "gpu_raytracer.hpp"
 
 #include <algorithm>

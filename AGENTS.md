@@ -1,6 +1,6 @@
 <!--
 SPDX-License-Identifier: GPL-3.0-or-later
-SPDX-FileCopyrightText: 2024-2026 Ingo Ruhnke <grumbel@gmail.com>
+SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 -->
 
 # KugelMatch — Agent Notes
