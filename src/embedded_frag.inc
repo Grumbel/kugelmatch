@@ -1,0 +1,197 @@
+const char* kEmbeddedFrag = R"GLSL(
+#version 330 core
+// Full raytracer in a fragment shader. No scene meshes — pure analytic intersections.
+in vec2 v_uv;
+out vec4 fragColor;
+
+#define MAX_SPHERES 8
+#define MAX_BOXES   4
+#define MAX_PLANES  8
+#define MAX_DEPTH   3
+
+uniform vec3 u_camPos;
+uniform vec3 u_camForward;
+uniform vec3 u_camRight;
+uniform vec3 u_camUp;
+uniform float u_fovScale;
+uniform float u_aspect;
+
+uniform vec3 u_lightPos;
+uniform vec3 u_lightColor;
+uniform vec3 u_ambient;
+uniform vec3 u_skyColor;
+
+uniform int u_numSpheres;
+uniform vec3 u_sphereCenter[MAX_SPHERES];
+uniform float u_sphereRadius[MAX_SPHERES];
+uniform vec3 u_sphereColor[MAX_SPHERES];
+uniform float u_sphereReflect[MAX_SPHERES];
+
+uniform int u_numBoxes;
+uniform vec3 u_boxMin[MAX_BOXES];
+uniform vec3 u_boxMax[MAX_BOXES];
+uniform vec3 u_boxColor[MAX_BOXES];
+uniform float u_boxReflect[MAX_BOXES];
+
+uniform int u_numPlanes;
+uniform vec3 u_planePoint[MAX_PLANES];
+uniform vec3 u_planeNormal[MAX_PLANES];
+uniform vec3 u_planeColorA[MAX_PLANES];
+uniform vec3 u_planeColorB[MAX_PLANES];
+uniform float u_planeScale[MAX_PLANES];
+uniform float u_planeReflect[MAX_PLANES];
+uniform int u_planeChecker[MAX_PLANES];
+
+struct Hit {
+    float t;
+    vec3 point;
+    vec3 normal;
+    vec3 color;
+    float reflectivity;
+    bool hit;
+};
+
+Hit intersect(vec3 ro, vec3 rd) {
+    Hit best;
+    best.t = 1e30;
+    best.hit = false;
+    best.color = vec3(0.0);
+    best.reflectivity = 0.0;
+    best.normal = vec3(0.0);
+    best.point = vec3(0.0);
+
+    for (int i = 0; i < MAX_SPHERES; ++i) {
+        if (i >= u_numSpheres) break;
+        vec3 oc = ro - u_sphereCenter[i];
+        float b = dot(oc, rd);
+        float c = dot(oc, oc) - u_sphereRadius[i] * u_sphereRadius[i];
+        float disc = b * b - c;
+        if (disc < 0.0) continue;
+        float sq = sqrt(disc);
+        float t = -b - sq;
+        if (t < 1e-4) t = -b + sq;
+        if (t > 1e-4 && t < best.t) {
+            best.t = t;
+            best.point = ro + rd * t;
+            best.normal = normalize(best.point - u_sphereCenter[i]);
+            best.color = u_sphereColor[i];
+            best.reflectivity = u_sphereReflect[i];
+            best.hit = true;
+        }
+    }
+
+    for (int i = 0; i < MAX_BOXES; ++i) {
+        if (i >= u_numBoxes) break;
+        vec3 invDir = 1.0 / rd;
+        vec3 t0 = (u_boxMin[i] - ro) * invDir;
+        vec3 t1 = (u_boxMax[i] - ro) * invDir;
+        vec3 tmin3 = min(t0, t1);
+        vec3 tmax3 = max(t0, t1);
+        float tmin = max(max(tmin3.x, tmin3.y), tmin3.z);
+        float tmax = min(min(tmax3.x, tmax3.y), tmax3.z);
+        if (tmax < 0.0 || tmin > tmax) continue;
+        float t = tmin > 1e-4 ? tmin : tmax;
+        if (t < 1e-4 || t >= best.t) continue;
+
+        best.t = t;
+        best.point = ro + rd * t;
+        vec3 center = (u_boxMin[i] + u_boxMax[i]) * 0.5;
+        vec3 d = best.point - center;
+        vec3 half = (u_boxMax[i] - u_boxMin[i]) * 0.5;
+        best.normal = normalize(vec3(
+            float(int(d.x / abs(half.x) * 1.0001)),
+            float(int(d.y / abs(half.y) * 1.0001)),
+            float(int(d.z / abs(half.z) * 1.0001))));
+        best.color = u_boxColor[i];
+        best.reflectivity = u_boxReflect[i];
+        best.hit = true;
+    }
+
+    for (int i = 0; i < MAX_PLANES; ++i) {
+        if (i >= u_numPlanes) break;
+        float denom = dot(u_planeNormal[i], rd);
+        if (abs(denom) < 1e-6) continue;
+        float t = dot(u_planePoint[i] - ro, u_planeNormal[i]) / denom;
+        if (t < 1e-4 || t >= best.t) continue;
+
+        best.t = t;
+        best.point = ro + rd * t;
+        best.normal = denom < 0.0 ? u_planeNormal[i] : -u_planeNormal[i];
+        best.reflectivity = u_planeReflect[i];
+
+        if (u_planeChecker[i] != 0) {
+            float u, v;
+            if (abs(u_planeNormal[i].y) > 0.9) {
+                u = best.point.x;
+                v = best.point.z;
+            } else if (abs(u_planeNormal[i].x) > 0.9) {
+                u = best.point.z;
+                v = best.point.y;
+            } else {
+                u = best.point.x;
+                v = best.point.y;
+            }
+            int iu = int(floor(u * u_planeScale[i]));
+            int iv = int(floor(v * u_planeScale[i]));
+            best.color = ((iu + iv) & 1) != 0 ? u_planeColorA[i] : u_planeColorB[i];
+        } else {
+            best.color = u_planeColorA[i];
+        }
+        best.hit = true;
+    }
+
+    return best;
+}
+
+vec3 shade(vec3 ro, vec3 rd, int depth) {
+    if (depth > MAX_DEPTH) {
+        return u_skyColor;
+    }
+
+    Hit h = intersect(ro, rd);
+    if (!h.hit) {
+        return u_skyColor;
+    }
+
+    vec3 col = h.color * u_ambient;
+
+    vec3 toLight = normalize(u_lightPos - h.point);
+    float ndotl = max(0.0, dot(h.normal, toLight));
+
+    // Shadow ray
+    Hit sh = intersect(h.point + h.normal * 1e-3, toLight);
+    float shadowFactor = 1.0;
+    if (sh.hit && sh.t < length(u_lightPos - h.point)) {
+        shadowFactor = 0.25;
+    }
+
+    col += h.color * u_lightColor * ndotl * shadowFactor;
+
+    vec3 viewDir = -rd;
+    vec3 halfV = normalize(toLight + viewDir);
+    float spec = pow(max(0.0, dot(h.normal, halfV)), 32.0);
+    col += u_lightColor * (spec * 0.4 * shadowFactor);
+
+    if (h.reflectivity > 0.01 && depth < MAX_DEPTH) {
+        vec3 rdir = reflect(rd, h.normal);
+        vec3 rcol = shade(h.point + h.normal * 1e-3, rdir, depth + 1);
+        col = mix(col, rcol, h.reflectivity);
+    }
+
+    return clamp(col, 0.0, 1.0);
+}
+
+void main() {
+    // v_uv is 0..1; convert to NDC-style ray
+    float u = (2.0 * v_uv.x - 1.0) * u_aspect * u_fovScale;
+    float v = (2.0 * v_uv.y - 1.0) * u_fovScale; // OpenGL y already bottom-up in our UV
+
+    vec3 rd = normalize(u_camForward + u_camRight * u + u_camUp * v);
+    vec3 col = shade(u_camPos, rd, 0);
+
+    // Gamma
+    col = sqrt(col);
+    fragColor = vec4(col, 1.0);
+}
+
+)GLSL";
