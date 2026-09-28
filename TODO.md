@@ -4,12 +4,13 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `47f8799` — swap left/right controls
+**Tip:** `15f8a39` — iterative GLSL trace (no recursion)
 
 ## Done
 
-- [x] Dual backends, audio, polish, resize/fullscreen, GLSL half fix
-- [x] Decorative spheres moved to side/back walls (7 orbs + ball)
+- [x] Dual backends, audio, polish, resize/fullscreen
+- [x] GLSL fixes: reserved `half`, no recursive `shade`
+- [x] Wall decos, swapped left/right controls
 
 ## Open / follow-ups
 
@@ -21,11 +22,11 @@ Base of this work line: `a7bcc21` (Initial checkin)
 ## Bundle naming for this stack
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-005.1-fix-glsl-half-a7bcc21.bundle`
-Next: `kugelmatch-006.1-wall-decos-a7bcc21.bundle`
+Previous: `kugelmatch-007.1-swap-controls-a7bcc21.bundle`
+Next tip bundle: `kugelmatch-008.1-fix-glsl-recursion-a7bcc21.bundle`
 
 ## Notes for next agent
 
-- GPU `MAX_SPHERES` is 8 (1 ball + 7 decos). Raise shader + C++ limits together if adding more.
-- Deco spheres are visual only; physics only tracks the match ball.
+- GLSL must not use recursion or reserved names (`half`, etc.).
+- Always regenerate `src/embedded_frag.inc` when editing `shaders/raytrace.frag`.
 - After a new tip bundle, delete superseded intermediate bundles for this project.
