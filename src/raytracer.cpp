@@ -73,12 +73,12 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
         best.point = ray.origin + ray.dir * t;
         Vec3 center = (box.minb + box.maxb) * 0.5f;
         Vec3 d = best.point - center;
-        Vec3 half = (box.maxb - box.minb) * 0.5f;
+        Vec3 halfExtent = (box.maxb - box.minb) * 0.5f;
         float bias = 1.0001f;
         best.normal = Vec3(
-            static_cast<float>(static_cast<int>(d.x / std::abs(half.x) * bias)),
-            static_cast<float>(static_cast<int>(d.y / std::abs(half.y) * bias)),
-            static_cast<float>(static_cast<int>(d.z / std::abs(half.z) * bias))).normalized();
+            static_cast<float>(static_cast<int>(d.x / std::abs(halfExtent.x) * bias)),
+            static_cast<float>(static_cast<int>(d.y / std::abs(halfExtent.y) * bias)),
+            static_cast<float>(static_cast<int>(d.z / std::abs(halfExtent.z) * bias))).normalized();
         best.color = box.color;
         best.reflectivity = box.reflectivity;
         best.hit = true;

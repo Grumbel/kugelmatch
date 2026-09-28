@@ -97,11 +97,11 @@ Hit intersect(vec3 ro, vec3 rd) {
         best.point = ro + rd * t;
         vec3 center = (u_boxMin[i] + u_boxMax[i]) * 0.5;
         vec3 d = best.point - center;
-        vec3 half = (u_boxMax[i] - u_boxMin[i]) * 0.5;
+        vec3 halfExtent = (u_boxMax[i] - u_boxMin[i]) * 0.5;
         best.normal = normalize(vec3(
-            float(int(d.x / abs(half.x) * 1.0001)),
-            float(int(d.y / abs(half.y) * 1.0001)),
-            float(int(d.z / abs(half.z) * 1.0001))));
+            float(int(d.x / abs(halfExtent.x) * 1.0001)),
+            float(int(d.y / abs(halfExtent.y) * 1.0001)),
+            float(int(d.z / abs(halfExtent.z) * 1.0001))));
         best.color = u_boxColor[i];
         best.reflectivity = u_boxReflect[i];
         best.hit = true;
