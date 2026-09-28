@@ -137,10 +137,10 @@ void Game::handleInput(float dt) {
     float speed = 9.0f;
 
     if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) {
-        playerX_ -= speed * dt;
+        playerX_ += speed * dt;
     }
     if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) {
-        playerX_ += speed * dt;
+        playerX_ -= speed * dt;
     }
     float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
     playerX_ = std::max(-half, std::min(half, playerX_));
