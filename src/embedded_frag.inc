@@ -143,22 +143,13 @@ Hit intersect(vec3 ro, vec3 rd) {
     return best;
 }
 
-vec3 shade(vec3 ro, vec3 rd, int depth) {
-    if (depth > MAX_DEPTH) {
-        return u_skyColor;
-    }
-
-    Hit h = intersect(ro, rd);
-    if (!h.hit) {
-        return u_skyColor;
-    }
-
+// Local lighting for a single hit (no recursion — Mesa forbids recursive GLSL).
+vec3 shadeHit(Hit h, vec3 rd) {
     vec3 col = h.color * u_ambient;
 
     vec3 toLight = normalize(u_lightPos - h.point);
     float ndotl = max(0.0, dot(h.normal, toLight));
 
-    // Shadow ray
     Hit sh = intersect(h.point + h.normal * 1e-3, toLight);
     float shadowFactor = 1.0;
     if (sh.hit && sh.t < length(u_lightPos - h.point)) {
@@ -172,13 +163,37 @@ vec3 shade(vec3 ro, vec3 rd, int depth) {
     float spec = pow(max(0.0, dot(h.normal, halfV)), 32.0);
     col += u_lightColor * (spec * 0.4 * shadowFactor);
 
-    if (h.reflectivity > 0.01 && depth < MAX_DEPTH) {
-        vec3 rdir = reflect(rd, h.normal);
-        vec3 rcol = shade(h.point + h.normal * 1e-3, rdir, depth + 1);
-        col = mix(col, rcol, h.reflectivity);
+    return col;
+}
+
+// Iterative path tracer for primary + reflection bounces.
+vec3 trace(vec3 ro, vec3 rd) {
+    vec3 throughput = vec3(1.0);
+    vec3 result = vec3(0.0);
+
+    for (int bounce = 0; bounce <= MAX_DEPTH; ++bounce) {
+        Hit h = intersect(ro, rd);
+        if (!h.hit) {
+            result += throughput * u_skyColor;
+            break;
+        }
+
+        vec3 local = shadeHit(h, rd);
+        // Non-reflected portion contributes now
+        float kr = h.reflectivity;
+        result += throughput * local * (1.0 - kr);
+
+        if (kr < 0.01 || bounce == MAX_DEPTH) {
+            break;
+        }
+
+        // Continue along reflection
+        throughput *= kr;
+        rd = reflect(rd, h.normal);
+        ro = h.point + h.normal * 1e-3;
     }
 
-    return clamp(col, 0.0, 1.0);
+    return clamp(result, 0.0, 1.0);
 }
 
 void main() {
@@ -187,7 +202,7 @@ void main() {
     float v = (2.0 * v_uv.y - 1.0) * u_fovScale; // OpenGL y already bottom-up in our UV
 
     vec3 rd = normalize(u_camForward + u_camRight * u + u_camUp * v);
-    vec3 col = shade(u_camPos, rd, 0);
+    vec3 col = trace(u_camPos, rd);
 
     // Soft 90s-style vignette
     vec2 n = v_uv * 2.0 - 1.0;
