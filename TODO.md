@@ -4,13 +4,13 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `15f8a39` — iterative GLSL trace (no recursion)
+**Tip:** `1f6064d` — GPU native resolution
 
 ## Done
 
-- [x] Dual backends, audio, polish, resize/fullscreen
-- [x] GLSL fixes: reserved `half`, no recursive `shade`
-- [x] Wall decos, swapped left/right controls
+- [x] Dual backends, audio, polish, resize/fullscreen, GLSL fixes
+- [x] Wall decos, swapped controls
+- [x] GPU raytraces at drawable/window resolution (CPU stays 640×480)
 
 ## Open / follow-ups
 
@@ -22,11 +22,11 @@ Base of this work line: `a7bcc21` (Initial checkin)
 ## Bundle naming for this stack
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-007.1-swap-controls-a7bcc21.bundle`
-Next tip bundle: `kugelmatch-008.1-fix-glsl-recursion-a7bcc21.bundle`
+Previous: `kugelmatch-008.1-fix-glsl-recursion-a7bcc21.bundle`
+Next: `kugelmatch-009.1-gpu-native-res-a7bcc21.bundle`
 
 ## Notes for next agent
 
-- GLSL must not use recursion or reserved names (`half`, etc.).
-- Always regenerate `src/embedded_frag.inc` when editing `shaders/raytrace.frag`.
+- GPU uses `SDL_GL_GetDrawableSize` each frame; aspect is `rtW_/rtH_`.
+- CPU still letterboxes via `SDL_RenderSetLogicalSize(640,480)`.
 - After a new tip bundle, delete superseded intermediate bundles for this project.
