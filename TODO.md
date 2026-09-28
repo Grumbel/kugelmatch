@@ -4,34 +4,36 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** f19c893 — metallic clanks + camera shake
+**Tip:** `ce70813` — polish (mute, serve delay, flash, vignette, FPS)
 
 ## Done
 
 - [x] Dual CPU/GPU raytracer backends
-- [x] AGENTS.md / TODO.md / COPYING / packaging
-- [x] Procedural metallic clank sounds on paddle/wall collisions (SDL audio)
-- [x] Soft thud on scoring
-- [x] Camera shake on collisions (stronger for player paddle hits)
+- [x] Procedural metallic clanks + soft thud
+- [x] Camera shake on collisions
+- [x] Mute (M) and master volume (+/−)
+- [x] Serve delay after points
+- [x] Ball impact flash
+- [x] Soft vignette (CPU + GPU)
+- [x] FPS in window title
 
 ## Open / follow-ups
 
-- [ ] Optional: compute-shader path (same algorithm, better for higher res)
-- [ ] Optional: more materials / soft shadows with multiple samples on GPU
-- [ ] Score overlay in-framebuffer (currently window title only)
+- [ ] Optional: compute-shader path
+- [ ] Optional: multi-sample soft shadows on GPU
+- [ ] Score overlay in-framebuffer (bitmap font)
 - [ ] Windows / macOS build notes
-- [ ] Optional: mute key / volume control
 
 ## Bundle naming for this stack
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-001.1-gpu-raytracer-a7bcc21.bundle`
-Next: `kugelmatch-002.1-audio-shake-a7bcc21.bundle`
+Previous tip bundle: `kugelmatch-002.1-audio-shake-a7bcc21.bundle`
+Next: `kugelmatch-003.1-polish-a7bcc21.bundle`
 
 ## Notes for next agent
 
-- Audio is procedural (no WAV assets); `Audio` mixes up to 8 voices in an SDL float callback.
-- Camera shake is applied in `Game::run` as offset on camPos/lookAt; decay in `updateShake`.
-- GPU shader limits (MAX_SPHERES etc.) must stay in sync with C++ upload.
+- Audio mute/master are atomics; safe from the SDL callback.
+- Serve uses `serveTimer_` / `queueServe`; physics paused while serving.
+- Vignette lives in CPU `renderRow` and GLSL `main`; regenerate `embedded_frag.inc` if the frag shader changes.
 - Both backends remain pure raytracers — no scene meshes.
 - After a new tip bundle, delete superseded intermediate bundles for this project.
