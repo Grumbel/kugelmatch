@@ -188,6 +188,11 @@ void main() {
     vec3 rd = normalize(u_camForward + u_camRight * u + u_camUp * v);
     vec3 col = shade(u_camPos, rd, 0);
 
+    // Soft 90s-style vignette
+    vec2 n = v_uv * 2.0 - 1.0;
+    float vig = clamp(1.0 - 0.35 * dot(n, n), 0.0, 1.0);
+    col *= vig;
+
     // Gamma
     col = sqrt(col);
     fragColor = vec4(col, 1.0);

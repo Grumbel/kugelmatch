@@ -177,6 +177,13 @@ void CpuRaytracer::renderRow(const Scene& scene, const Camera& cam, uint32_t* fb
 
         Vec3 col = shade(ray, scene, 0);
 
+        // Soft 90s-style vignette
+        float nx = (x + 0.5f) / WIDTH * 2.0f - 1.0f;
+        float ny = (y + 0.5f) / HEIGHT * 2.0f - 1.0f;
+        float vig = 1.0f - 0.35f * (nx * nx + ny * ny);
+        if (vig < 0.0f) vig = 0.0f;
+        col *= vig;
+
         int r = static_cast<int>(std::sqrt(col.x) * 255.0f + 0.5f);
         int g = static_cast<int>(std::sqrt(col.y) * 255.0f + 0.5f);
         int b = static_cast<int>(std::sqrt(col.z) * 255.0f + 0.5f);
