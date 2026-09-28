@@ -77,6 +77,7 @@ private:
     void buildScene();
     void presentCpu();
     void updateHud();
+    void toggleFullscreen();
     void triggerShake(float amount);
     void updateShake(float dt);
 };

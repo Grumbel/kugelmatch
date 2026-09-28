@@ -8,12 +8,39 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <vector>
 
-// Minimal OpenGL 3.3 core loader via SDL_GL_GetProcAddress
 #include <SDL_opengl.h>
 
-// Function pointers we need (avoid GLEW dependency)
+// Core FBO tokens (in case the system GL header is limited)
+#ifndef GL_FRAMEBUFFER
+#define GL_FRAMEBUFFER 0x8D40
+#endif
+#ifndef GL_READ_FRAMEBUFFER
+#define GL_READ_FRAMEBUFFER 0x8CA8
+#endif
+#ifndef GL_DRAW_FRAMEBUFFER
+#define GL_DRAW_FRAMEBUFFER 0x8CA9
+#endif
+#ifndef GL_COLOR_ATTACHMENT0
+#define GL_COLOR_ATTACHMENT0 0x8CE0
+#endif
+#ifndef GL_FRAMEBUFFER_COMPLETE
+#define GL_FRAMEBUFFER_COMPLETE 0x8CD5
+#endif
+#ifndef GL_RGBA8
+#define GL_RGBA8 0x8058
+#endif
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+#ifndef GL_TEXTURE_WRAP_S
+#define GL_TEXTURE_WRAP_S 0x2802
+#endif
+#ifndef GL_TEXTURE_WRAP_T
+#define GL_TEXTURE_WRAP_T 0x2803
+#endif
+
+
 namespace {
 
 using PFNGLCREATESHADERPROC = GLuint (*)(GLenum);
@@ -33,13 +60,24 @@ using PFNGLGETUNIFORMLOCATIONPROC = GLint (*)(GLuint, const GLchar*);
 using PFNGLUNIFORM1IPROC = void (*)(GLint, GLint);
 using PFNGLUNIFORM1FPROC = void (*)(GLint, GLfloat);
 using PFNGLUNIFORM3FPROC = void (*)(GLint, GLfloat, GLfloat, GLfloat);
-using PFNGLUNIFORM3FVPROC = void (*)(GLint, GLsizei, const GLfloat*);
-using PFNGLUNIFORM1FVPROC = void (*)(GLint, GLsizei, const GLfloat*);
-using PFNGLUNIFORM1IVPROC = void (*)(GLint, GLsizei, const GLint*);
 using PFNGLGENVERTEXARRAYSPROC = void (*)(GLsizei, GLuint*);
 using PFNGLBINDVERTEXARRAYPROC = void (*)(GLuint);
 using PFNGLDELETEVERTEXARRAYSPROC = void (*)(GLsizei, const GLuint*);
 using PFNGLDRAWARRAYSPROC = void (*)(GLenum, GLint, GLsizei);
+using PFNGLGENFRAMEBUFFERSPROC = void (*)(GLsizei, GLuint*);
+using PFNGLBINDFRAMEBUFFERPROC = void (*)(GLenum, GLuint);
+using PFNGLFRAMEBUFFERTEXTURE2DPROC = void (*)(GLenum, GLenum, GLenum, GLuint, GLint);
+using PFNGLCHECKFRAMEBUFFERSTATUSPROC = GLenum (*)(GLenum);
+using PFNGLDELETEFRAMEBUFFERSPROC = void (*)(GLsizei, const GLuint*);
+using PFNGLGENTEXTURESPROC = void (*)(GLsizei, GLuint*);
+using PFNGLBINDTEXTUREPROC = void (*)(GLenum, GLuint);
+using PFNGLTEXIMAGE2DPROC = void (*)(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void*);
+using PFNGLTEXPARAMETERIPROC = void (*)(GLenum, GLenum, GLint);
+using PFNGLDELETETEXTURESPROC = void (*)(GLsizei, const GLuint*);
+using PFNGLBLITFRAMEBUFFERPROC = void (*)(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
+using PFNGLVIEWPORTPROC = void (*)(GLint, GLint, GLsizei, GLsizei);
+using PFNGLCLEARPROC = void (*)(GLbitfield);
+using PFNGLCLEARCOLORPROC = void (*)(GLfloat, GLfloat, GLfloat, GLfloat);
 
 PFNGLCREATESHADERPROC glCreateShader_ = nullptr;
 PFNGLSHADERSOURCEPROC glShaderSource_ = nullptr;
@@ -58,13 +96,24 @@ PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation_ = nullptr;
 PFNGLUNIFORM1IPROC glUniform1i_ = nullptr;
 PFNGLUNIFORM1FPROC glUniform1f_ = nullptr;
 PFNGLUNIFORM3FPROC glUniform3f_ = nullptr;
-PFNGLUNIFORM3FVPROC glUniform3fv_ = nullptr;
-PFNGLUNIFORM1FVPROC glUniform1fv_ = nullptr;
-PFNGLUNIFORM1IVPROC glUniform1iv_ = nullptr;
 PFNGLGENVERTEXARRAYSPROC glGenVertexArrays_ = nullptr;
 PFNGLBINDVERTEXARRAYPROC glBindVertexArray_ = nullptr;
 PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays_ = nullptr;
 PFNGLDRAWARRAYSPROC glDrawArrays_ = nullptr;
+PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers_ = nullptr;
+PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer_ = nullptr;
+PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D_ = nullptr;
+PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus_ = nullptr;
+PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers_ = nullptr;
+PFNGLGENTEXTURESPROC glGenTextures_ = nullptr;
+PFNGLBINDTEXTUREPROC glBindTexture_ = nullptr;
+PFNGLTEXIMAGE2DPROC glTexImage2D_ = nullptr;
+PFNGLTEXPARAMETERIPROC glTexParameteri_ = nullptr;
+PFNGLDELETETEXTURESPROC glDeleteTextures_ = nullptr;
+PFNGLBLITFRAMEBUFFERPROC glBlitFramebuffer_ = nullptr;
+PFNGLVIEWPORTPROC glViewport_ = nullptr;
+PFNGLCLEARPROC glClear_ = nullptr;
+PFNGLCLEARCOLORPROC glClearColor_ = nullptr;
 
 template <typename T>
 bool loadProc(T& fn, const char* name) {
@@ -95,13 +144,24 @@ bool loadGL() {
     ok &= loadProc(glUniform1i_, "glUniform1i");
     ok &= loadProc(glUniform1f_, "glUniform1f");
     ok &= loadProc(glUniform3f_, "glUniform3f");
-    ok &= loadProc(glUniform3fv_, "glUniform3fv");
-    ok &= loadProc(glUniform1fv_, "glUniform1fv");
-    ok &= loadProc(glUniform1iv_, "glUniform1iv");
     ok &= loadProc(glGenVertexArrays_, "glGenVertexArrays");
     ok &= loadProc(glBindVertexArray_, "glBindVertexArray");
     ok &= loadProc(glDeleteVertexArrays_, "glDeleteVertexArrays");
     ok &= loadProc(glDrawArrays_, "glDrawArrays");
+    ok &= loadProc(glGenFramebuffers_, "glGenFramebuffers");
+    ok &= loadProc(glBindFramebuffer_, "glBindFramebuffer");
+    ok &= loadProc(glFramebufferTexture2D_, "glFramebufferTexture2D");
+    ok &= loadProc(glCheckFramebufferStatus_, "glCheckFramebufferStatus");
+    ok &= loadProc(glDeleteFramebuffers_, "glDeleteFramebuffers");
+    ok &= loadProc(glGenTextures_, "glGenTextures");
+    ok &= loadProc(glBindTexture_, "glBindTexture");
+    ok &= loadProc(glTexImage2D_, "glTexImage2D");
+    ok &= loadProc(glTexParameteri_, "glTexParameteri");
+    ok &= loadProc(glDeleteTextures_, "glDeleteTextures");
+    ok &= loadProc(glBlitFramebuffer_, "glBlitFramebuffer");
+    ok &= loadProc(glViewport_, "glViewport");
+    ok &= loadProc(glClear_, "glClear");
+    ok &= loadProc(glClearColor_, "glClearColor");
     return ok;
 }
 
@@ -115,7 +175,6 @@ std::string readFile(const std::string& path) {
     return ss.str();
 }
 
-// Fallback embedded shaders if files are not found next to the binary
 const char* kEmbeddedVert = R"GLSL(
 #version 330 core
 out vec2 v_uv;
@@ -127,14 +186,20 @@ void main() {
 }
 )GLSL";
 
-// Note: fragment shader is large; we prefer loading from disk.
-// Embedded copy kept in sync with shaders/raytrace.frag
-#include "embedded_frag.inc"  // generated from shaders/raytrace.frag
+#include "embedded_frag.inc"
 
 } // namespace
 
 GpuRaytracer::~GpuRaytracer() {
     if (glctx_) {
+        if (fbo_) {
+            glDeleteFramebuffers_(1, &fbo_);
+            fbo_ = 0;
+        }
+        if (colorTex_) {
+            glDeleteTextures_(1, &colorTex_);
+            colorTex_ = 0;
+        }
         if (program_) {
             glDeleteProgram_(program_);
             program_ = 0;
@@ -178,8 +243,12 @@ bool GpuRaytracer::loadShaders() {
     GLuint vs = compileShader(GL_VERTEX_SHADER, vertSrc.c_str());
     GLuint fs = compileShader(GL_FRAGMENT_SHADER, fragSrc.c_str());
     if (!vs || !fs) {
-        if (vs) glDeleteShader_(vs);
-        if (fs) glDeleteShader_(fs);
+        if (vs) {
+            glDeleteShader_(vs);
+        }
+        if (fs) {
+            glDeleteShader_(fs);
+        }
         return false;
     }
 
@@ -198,6 +267,27 @@ bool GpuRaytracer::loadShaders() {
         std::fprintf(stderr, "Program link error:\n%s\n", log);
         glDeleteProgram_(program_);
         program_ = 0;
+        return false;
+    }
+    return true;
+}
+
+bool GpuRaytracer::createFbo() {
+    glGenTextures_(1, &colorTex_);
+    glBindTexture_(GL_TEXTURE_2D, colorTex_);
+    glTexImage2D_(GL_TEXTURE_2D, 0, GL_RGBA8, WIDTH, HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glGenFramebuffers_(1, &fbo_);
+    glBindFramebuffer_(GL_FRAMEBUFFER, fbo_);
+    glFramebufferTexture2D_(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTex_, 0);
+    GLenum status = glCheckFramebufferStatus_(GL_FRAMEBUFFER);
+    glBindFramebuffer_(GL_FRAMEBUFFER, 0);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        std::fprintf(stderr, "FBO incomplete: 0x%x\n", status);
         return false;
     }
     return true;
@@ -222,21 +312,47 @@ bool GpuRaytracer::init(SDL_Window* window) {
         return false;
     }
 
-    SDL_GL_SetSwapInterval(1); // vsync when available
+    SDL_GL_SetSwapInterval(1);
 
     if (!loadGL()) {
         return false;
     }
-
     if (!loadShaders()) {
+        return false;
+    }
+    if (!createFbo()) {
         return false;
     }
 
     glGenVertexArrays_(1, &vao_);
     glBindVertexArray_(vao_);
 
+    SDL_GetWindowSize(window_, &winW_, &winH_);
     ready_ = true;
     return true;
+}
+
+void GpuRaytracer::onResize(int windowW, int windowH) {
+    winW_ = std::max(1, windowW);
+    winH_ = std::max(1, windowH);
+}
+
+void GpuRaytracer::letterboxDst(int& dx, int& dy, int& dw, int& dh) const {
+    const float srcAspect = static_cast<float>(WIDTH) / static_cast<float>(HEIGHT);
+    const float dstAspect = static_cast<float>(winW_) / static_cast<float>(winH_);
+    if (dstAspect > srcAspect) {
+        // window wider — pillarbox
+        dh = winH_;
+        dw = static_cast<int>(winH_ * srcAspect + 0.5f);
+        dx = (winW_ - dw) / 2;
+        dy = 0;
+    } else {
+        // window taller — letterbox
+        dw = winW_;
+        dh = static_cast<int>(winW_ / srcAspect + 0.5f);
+        dx = 0;
+        dy = (winH_ - dh) / 2;
+    }
 }
 
 void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
@@ -244,15 +360,21 @@ void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
 
     auto loc3 = [&](const char* name, const Vec3& v) {
         GLint l = glGetUniformLocation_(program_, name);
-        if (l >= 0) glUniform3f_(l, v.x, v.y, v.z);
+        if (l >= 0) {
+            glUniform3f_(l, v.x, v.y, v.z);
+        }
     };
     auto loc1f = [&](const char* name, float v) {
         GLint l = glGetUniformLocation_(program_, name);
-        if (l >= 0) glUniform1f_(l, v);
+        if (l >= 0) {
+            glUniform1f_(l, v);
+        }
     };
     auto loc1i = [&](const char* name, int v) {
         GLint l = glGetUniformLocation_(program_, name);
-        if (l >= 0) glUniform1i_(l, v);
+        if (l >= 0) {
+            glUniform1i_(l, v);
+        }
     };
 
     loc3("u_camPos", cam.pos);
@@ -323,17 +445,44 @@ void GpuRaytracer::render(const Scene& scene, const Camera& cam) {
     if (!ready_) {
         return;
     }
-    glViewport(0, 0, WIDTH, HEIGHT);
-    glClearColor(0.f, 0.f, 0.f, 1.f);
-    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Raytrace into fixed-resolution FBO
+    glBindFramebuffer_(GL_FRAMEBUFFER, fbo_);
+    glViewport_(0, 0, WIDTH, HEIGHT);
+    glClearColor_(0.f, 0.f, 0.f, 1.f);
+    glClear_(GL_COLOR_BUFFER_BIT);
 
     uploadScene(scene, cam);
     glBindVertexArray_(vao_);
     glDrawArrays_(GL_TRIANGLES, 0, 3);
+    glBindFramebuffer_(GL_FRAMEBUFFER, 0);
 }
 
 void GpuRaytracer::present() {
-    if (window_ && glctx_) {
-        SDL_GL_SwapWindow(window_);
+    if (!ready_ || !window_ || !glctx_) {
+        return;
     }
+
+    // Use drawable size (handles HiDPI)
+    int dw = winW_, dh = winH_;
+    SDL_GL_GetDrawableSize(window_, &dw, &dh);
+    winW_ = std::max(1, dw);
+    winH_ = std::max(1, dh);
+
+    glBindFramebuffer_(GL_FRAMEBUFFER, 0);
+    glViewport_(0, 0, winW_, winH_);
+    glClearColor_(0.f, 0.f, 0.f, 1.f);
+    glClear_(GL_COLOR_BUFFER_BIT);
+
+    int dx = 0, dy = 0, dww = winW_, dhh = winH_;
+    letterboxDst(dx, dy, dww, dhh);
+
+    glBindFramebuffer_(GL_READ_FRAMEBUFFER, fbo_);
+    glBindFramebuffer_(GL_DRAW_FRAMEBUFFER, 0);
+    // Note: GL Y is bottom-up; FBO content matches shader orientation
+    glBlitFramebuffer_(0, 0, WIDTH, HEIGHT, dx, dy, dx + dww, dy + dhh,
+                       GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    glBindFramebuffer_(GL_FRAMEBUFFER, 0);
+
+    SDL_GL_SwapWindow(window_);
 }

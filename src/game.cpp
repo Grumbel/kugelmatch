@@ -24,7 +24,7 @@ bool Game::init() {
         return false;
     }
 
-    Uint32 winFlags = SDL_WINDOW_SHOWN;
+    Uint32 winFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
     if (backend_ == RenderBackend::Gpu) {
         winFlags |= SDL_WINDOW_OPENGL;
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
@@ -69,6 +69,9 @@ bool Game::init() {
         }
         framebuffer_ = new uint32_t[CpuRaytracer::WIDTH * CpuRaytracer::HEIGHT];
         std::memset(framebuffer_, 0, sizeof(uint32_t) * CpuRaytracer::WIDTH * CpuRaytracer::HEIGHT);
+        // Fixed internal resolution; letterbox/scale to window
+        SDL_RenderSetLogicalSize(sdlRenderer_, CpuRaytracer::WIDTH, CpuRaytracer::HEIGHT);
+        SDL_RenderSetIntegerScale(sdlRenderer_, SDL_FALSE);
     }
 
     if (!audio_.init()) {
@@ -389,6 +392,21 @@ void Game::buildScene() {
     scene_.lightPos = Vec3(0.0f, WALL_H - 0.5f, FIELD_L * 0.45f);
 }
 
+void Game::toggleFullscreen() {
+    Uint32 flags = SDL_GetWindowFlags(window_);
+    if (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) {
+        SDL_SetWindowFullscreen(window_, 0);
+    } else {
+        // Borderless desktop fullscreen — plays nicer with multi-monitor
+        SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    }
+    int w = 0, h = 0;
+    SDL_GetWindowSize(window_, &w, &h);
+    if (backend_ == RenderBackend::Gpu) {
+        gpuRt_.onResize(w, h);
+    }
+}
+
 void Game::presentCpu() {
     SDL_UpdateTexture(texture_, nullptr, framebuffer_,
                       CpuRaytracer::WIDTH * static_cast<int>(sizeof(uint32_t)));
@@ -417,7 +435,15 @@ void Game::run() {
             if (e.type == SDL_QUIT) {
                 running_ = false;
             }
+            if (e.type == SDL_WINDOWEVENT &&
+                (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
+                 e.window.event == SDL_WINDOWEVENT_RESIZED)) {
+                if (backend_ == RenderBackend::Gpu) {
+                    gpuRt_.onResize(e.window.data1, e.window.data2);
+                }
+            }
             if (e.type == SDL_KEYDOWN) {
+                const SDL_Keymod mods = SDL_GetModState();
                 switch (e.key.keysym.sym) {
                 case SDLK_ESCAPE:
                     running_ = false;
@@ -427,6 +453,15 @@ void Game::run() {
                     break;
                 case SDLK_m:
                     audio_.toggleMute();
+                    break;
+                case SDLK_F11:
+                    toggleFullscreen();
+                    break;
+                case SDLK_RETURN:
+                case SDLK_KP_ENTER:
+                    if (mods & KMOD_ALT) {
+                        toggleFullscreen();
+                    }
                     break;
                 default:
                     break;

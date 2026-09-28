@@ -20,6 +20,7 @@ Shared look: checkerboard floor + walls, reflective **mirror ball**, camera lock
 | P | Pause |
 | M | Mute / unmute |
 | + / − | Volume up / down |
+| F11 or Alt+Enter | Toggle fullscreen |
 | ESC | Quit |
 
 ## Build with Nix
@@ -63,5 +64,7 @@ cmake --build . -j
 - Short **camera shake** on collisions (stronger for player paddle hits)
 - Mute (M), master volume (+/−), serve delay after points, ball impact flash
 - Soft vignette on both backends; FPS in window title
+- Resizable window; internal RT stays **640×480**, letterboxed/scaled to the window
+- Desktop fullscreen via F11 / Alt+Enter
 
 License: GPLv3+

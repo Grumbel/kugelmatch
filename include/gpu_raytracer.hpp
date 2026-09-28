@@ -4,16 +4,14 @@
 
 #include "scene.hpp"
 #include <SDL.h>
-#include <string>
 
-// OpenGL fragment-shader raytracer. Renders a fullscreen triangle;
-// every pixel runs the full raytracing pipeline in GLSL. No scene meshes.
+// OpenGL fragment-shader raytracer. Renders into a fixed 640×480 FBO, then
+// letterboxes to the window. Full analytic RT — no scene meshes.
 class GpuRaytracer {
 public:
     static constexpr int WIDTH = 640;
     static constexpr int HEIGHT = 480;
 
-    // Limits must match the shader (#define MAX_*)
     static constexpr int MAX_SPHERES = 8;
     static constexpr int MAX_BOXES = 4;
     static constexpr int MAX_PLANES = 8;
@@ -21,12 +19,10 @@ public:
     GpuRaytracer() = default;
     ~GpuRaytracer();
 
-    // Create GL context on an existing SDL window (must be created with
-    // SDL_WINDOW_OPENGL). Returns false on failure.
     bool init(SDL_Window* window);
-
     void render(const Scene& scene, const Camera& cam);
-    void present(); // swap buffers
+    void present(); // letterbox blit + swap
+    void onResize(int windowW, int windowH);
 
     bool ready() const { return ready_; }
 
@@ -35,9 +31,15 @@ private:
     SDL_GLContext glctx_ = nullptr;
     unsigned program_ = 0;
     unsigned vao_ = 0;
+    unsigned fbo_ = 0;
+    unsigned colorTex_ = 0;
+    int winW_ = WIDTH;
+    int winH_ = HEIGHT;
     bool ready_ = false;
 
     bool loadShaders();
+    bool createFbo();
     static unsigned compileShader(unsigned type, const char* source);
     void uploadScene(const Scene& scene, const Camera& cam) const;
+    void letterboxDst(int& dx, int& dy, int& dw, int& dh) const;
 };
