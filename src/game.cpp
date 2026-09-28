@@ -375,19 +375,39 @@ void Game::buildScene() {
     }
     scene_.spheres.push_back(ball);
 
-    Sphere deco1;
-    deco1.center = Vec3(-3.2f, 0.5f, 4.0f);
-    deco1.radius = 0.5f;
-    deco1.color = Vec3(0.9f, 0.6f, 0.2f);
-    deco1.reflectivity = 0.6f;
-    scene_.spheres.push_back(deco1);
+    // Decorative mirror orbs mounted on the walls (outside the play volume).
+    // GPU backend allows MAX_SPHERES=8 total (1 ball + 7 decos).
+    const float wallL = -FIELD_W * 0.5f;
+    const float wallR = FIELD_W * 0.5f;
+    const float wallB = FIELD_L + 0.5f;
 
-    Sphere deco2;
-    deco2.center = Vec3(3.0f, 0.4f, 12.0f);
-    deco2.radius = 0.4f;
-    deco2.color = Vec3(0.3f, 0.7f, 0.9f);
-    deco2.reflectivity = 0.55f;
-    scene_.spheres.push_back(deco2);
+    struct DecoSpec {
+        Vec3 center;
+        float radius;
+        Vec3 color;
+        float reflectivity;
+    };
+    const DecoSpec decos[] = {
+        // Left wall
+        {Vec3(wallL + 0.28f, 1.6f, 3.5f), 0.35f, Vec3(0.9f, 0.55f, 0.2f), 0.65f},
+        {Vec3(wallL + 0.22f, 2.2f, 8.0f), 0.28f, Vec3(0.85f, 0.3f, 0.45f), 0.7f},
+        {Vec3(wallL + 0.32f, 1.1f, 13.0f), 0.4f, Vec3(0.4f, 0.75f, 0.95f), 0.6f},
+        // Right wall
+        {Vec3(wallR - 0.28f, 1.8f, 5.0f), 0.32f, Vec3(0.3f, 0.7f, 0.9f), 0.65f},
+        {Vec3(wallR - 0.25f, 2.4f, 10.5f), 0.3f, Vec3(0.95f, 0.85f, 0.35f), 0.55f},
+        {Vec3(wallR - 0.35f, 1.3f, 14.2f), 0.38f, Vec3(0.7f, 0.4f, 0.85f), 0.7f},
+        // Back wall (above AI paddle)
+        {Vec3(0.0f, 2.15f, wallB - 0.3f), 0.4f, Vec3(0.95f, 0.55f, 0.4f), 0.65f},
+    };
+    for (const auto& d : decos) {
+        Sphere s;
+        s.center = d.center;
+        s.radius = d.radius;
+        s.color = d.color;
+        s.reflectivity = d.reflectivity;
+        scene_.spheres.push_back(s);
+    }
+
 
     scene_.lightPos = Vec3(0.0f, WALL_H - 0.5f, FIELD_L * 0.45f);
 }
