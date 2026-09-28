@@ -23,9 +23,9 @@ private:
     RenderBackend backend_;
 
     SDL_Window* window_ = nullptr;
-    SDL_Renderer* sdlRenderer_ = nullptr; // CPU path only
-    SDL_Texture* texture_ = nullptr;      // CPU path only
-    uint32_t* framebuffer_ = nullptr;     // CPU path only
+    SDL_Renderer* sdlRenderer_ = nullptr;
+    SDL_Texture* texture_ = nullptr;
+    uint32_t* framebuffer_ = nullptr;
 
     CpuRaytracer cpuRt_;
     GpuRaytracer gpuRt_;
@@ -46,11 +46,20 @@ private:
     bool running_ = false;
     bool paused_ = false;
 
-    // Camera shake (world units), decays over time
+    // Camera shake
     float shake_ = 0.0f;
-    float shakeTime_ = 0.0f;
     float shakeOffsetX_ = 0.0f;
     float shakeOffsetY_ = 0.0f;
+
+    // Serve pause after a point (seconds remaining)
+    float serveTimer_ = 0.0f;
+    bool nextServeTowardPlayer_ = false;
+
+    // Ball impact flash (seconds remaining)
+    float ballFlash_ = 0.0f;
+
+    // FPS display (smoothed)
+    float fpsSmooth_ = 0.0f;
 
     static constexpr float FIELD_W = 8.0f;
     static constexpr float FIELD_L = 16.0f;
@@ -59,8 +68,10 @@ private:
     static constexpr float PADDLE_D = 0.3f;
     static constexpr float BALL_R = 0.35f;
     static constexpr float WALL_H = 3.0f;
+    static constexpr float SERVE_DELAY = 0.75f;
 
     void resetBall(bool towardPlayer);
+    void queueServe(bool towardPlayer);
     void update(float dt);
     void handleInput(float dt);
     void buildScene();

@@ -71,14 +71,14 @@ bool Game::init() {
         std::memset(framebuffer_, 0, sizeof(uint32_t) * CpuRaytracer::WIDTH * CpuRaytracer::HEIGHT);
     }
 
-    // Audio is optional — game still runs if device open fails
     if (!audio_.init()) {
         std::fprintf(stderr, "Warning: audio init failed; continuing without sound.\n");
     }
 
     playerX_ = 0.0f;
     aiX_ = 0.0f;
-    resetBall(false);
+    // First serve after a short delay so the view settles
+    queueServe(false);
 
     scene_.lightPos = Vec3(0.0f, 6.0f, 8.0f);
     scene_.lightColor = Vec3(1.2f, 1.15f, 1.05f);
@@ -116,6 +116,17 @@ void Game::resetBall(bool towardPlayer) {
     float speed = 6.5f + (std::rand() % 100) * 0.01f;
     ballVX_ = ((std::rand() % 200) - 100) * 0.02f;
     ballVZ_ = towardPlayer ? -speed : speed;
+    ballFlash_ = 0.0f;
+}
+
+void Game::queueServe(bool towardPlayer) {
+    nextServeTowardPlayer_ = towardPlayer;
+    serveTimer_ = SERVE_DELAY;
+    ballX_ = 0.0f;
+    ballZ_ = FIELD_L * 0.5f;
+    ballVX_ = 0.0f;
+    ballVZ_ = 0.0f;
+    ballFlash_ = 0.0f;
 }
 
 void Game::handleInput(float dt) {
@@ -134,20 +145,25 @@ void Game::handleInput(float dt) {
     if (keys[SDL_SCANCODE_R]) {
         playerScore_ = 0;
         aiScore_ = 0;
-        resetBall(false);
+        queueServe(false);
+    }
+
+    // Continuous volume keys while held (with rate limiting via dt is fine)
+    if (keys[SDL_SCANCODE_EQUALS] || keys[SDL_SCANCODE_KP_PLUS]) {
+        audio_.setMasterVolume(audio_.masterVolume() + 0.5f * dt);
+    }
+    if (keys[SDL_SCANCODE_MINUS] || keys[SDL_SCANCODE_KP_MINUS]) {
+        audio_.setMasterVolume(audio_.masterVolume() - 0.5f * dt);
     }
 }
 
 void Game::triggerShake(float amount) {
-    // Keep the stronger of current and new impulse
     if (amount > shake_) {
         shake_ = amount;
     }
-    shakeTime_ = 0.0f;
-    // Random direction in X/Y (view space-ish)
     float angle = (static_cast<float>(std::rand() % 1000) / 1000.0f) * 6.2831853f;
     shakeOffsetX_ = std::cos(angle);
-    shakeOffsetY_ = std::sin(angle) * 0.6f; // slightly less vertical
+    shakeOffsetY_ = std::sin(angle) * 0.6f;
 }
 
 void Game::updateShake(float dt) {
@@ -155,8 +171,6 @@ void Game::updateShake(float dt) {
         shake_ = 0.0f;
         return;
     }
-    shakeTime_ += dt;
-    // Exponential decay ~120 ms half-life feel
     shake_ *= std::exp(-dt * 8.0f);
     if (shake_ < 0.001f) {
         shake_ = 0.0f;
@@ -165,7 +179,35 @@ void Game::updateShake(float dt) {
 
 void Game::update(float dt) {
     updateShake(dt);
+
+    if (ballFlash_ > 0.0f) {
+        ballFlash_ -= dt;
+        if (ballFlash_ < 0.0f) {
+            ballFlash_ = 0.0f;
+        }
+    }
+
     if (paused_) {
+        return;
+    }
+
+    // Serve countdown: ball held center, then launch
+    if (serveTimer_ > 0.0f) {
+        serveTimer_ -= dt;
+        if (serveTimer_ <= 0.0f) {
+            serveTimer_ = 0.0f;
+            resetBall(nextServeTowardPlayer_);
+            audio_.playSoftThud(1.1f, 0.25f);
+        }
+        // AI / player still move during serve pause
+        float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
+        // Mild AI drift toward center while waiting
+        if (aiX_ < -0.1f) {
+            aiX_ += 4.0f * dt;
+        } else if (aiX_ > 0.1f) {
+            aiX_ -= 4.0f * dt;
+        }
+        aiX_ = std::max(-half, std::min(half, aiX_));
         return;
     }
 
@@ -186,25 +228,23 @@ void Game::update(float dt) {
     ballX_ += ballVX_ * dt;
     ballZ_ += ballVZ_ * dt;
 
-    // Side walls — metallic clank + light shake
     float wall = FIELD_W * 0.5f - BALL_R;
     if (ballX_ < -wall) {
         ballX_ = -wall;
         ballVX_ = -ballVX_;
         float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
-        float pitch = 0.95f + std::min(0.25f, speed * 0.02f);
-        audio_.playClank(pitch, 0.45f);
+        audio_.playClank(0.95f + std::min(0.25f, speed * 0.02f), 0.45f);
         triggerShake(0.04f);
+        ballFlash_ = 0.12f;
     } else if (ballX_ > wall) {
         ballX_ = wall;
         ballVX_ = -ballVX_;
         float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
-        float pitch = 0.95f + std::min(0.25f, speed * 0.02f);
-        audio_.playClank(pitch, 0.45f);
+        audio_.playClank(0.95f + std::min(0.25f, speed * 0.02f), 0.45f);
         triggerShake(0.04f);
+        ballFlash_ = 0.12f;
     }
 
-    // Player paddle
     float pz = 0.4f;
     if (ballZ_ - BALL_R < pz + PADDLE_D * 0.5f && ballZ_ + BALL_R > pz - PADDLE_D * 0.5f &&
         ballVZ_ < 0.0f) {
@@ -219,14 +259,13 @@ void Game::update(float dt) {
                 ballVX_ *= 14.0f / sp;
                 ballVZ_ *= 14.0f / sp;
             }
-            // Stronger clank + shake for player hits (camera is on this paddle)
             float pitch = 0.85f + std::min(0.4f, sp * 0.03f) + std::abs(offset) * 0.15f;
             audio_.playClank(pitch, 0.75f);
             triggerShake(0.12f + std::min(0.08f, sp * 0.008f));
+            ballFlash_ = 0.2f;
         }
     }
 
-    // AI paddle
     float az = FIELD_L - 0.4f;
     if (ballZ_ + BALL_R > az - PADDLE_D * 0.5f && ballZ_ - BALL_R < az + PADDLE_D * 0.5f &&
         ballVZ_ > 0.0f) {
@@ -241,23 +280,22 @@ void Game::update(float dt) {
                 ballVX_ *= 14.0f / sp;
                 ballVZ_ *= 14.0f / sp;
             }
-            float pitch = 0.75f + std::min(0.35f, sp * 0.025f);
-            audio_.playClank(pitch, 0.55f);
+            audio_.playClank(0.75f + std::min(0.35f, sp * 0.025f), 0.55f);
             triggerShake(0.05f);
+            ballFlash_ = 0.18f;
         }
     }
 
-    // Scoring — soft thud, no big shake
     if (ballZ_ < -1.0f) {
         aiScore_++;
         audio_.playSoftThud(0.6f, 0.35f);
         triggerShake(0.06f);
-        resetBall(false);
+        queueServe(false);
     } else if (ballZ_ > FIELD_L + 1.0f) {
         playerScore_++;
         audio_.playSoftThud(0.7f, 0.35f);
         triggerShake(0.06f);
-        resetBall(true);
+        queueServe(true);
     }
 }
 
@@ -323,8 +361,15 @@ void Game::buildScene() {
     Sphere ball;
     ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
     ball.radius = BALL_R;
-    ball.color = Vec3(0.95f, 0.95f, 1.0f);
-    ball.reflectivity = 0.85f;
+    // Flash: brighten and slightly lower reflectivity so energy shows
+    if (ballFlash_ > 0.0f) {
+        float k = std::min(1.0f, ballFlash_ / 0.2f);
+        ball.color = Vec3(1.0f, 1.0f, 1.0f) * (0.95f + 0.8f * k);
+        ball.reflectivity = 0.85f - 0.25f * k;
+    } else {
+        ball.color = Vec3(0.95f, 0.95f, 1.0f);
+        ball.reflectivity = 0.85f;
+    }
     scene_.spheres.push_back(ball);
 
     Sphere deco1;
@@ -354,10 +399,11 @@ void Game::presentCpu() {
 
 void Game::updateHud() {
     const char* mode = backend_ == RenderBackend::Gpu ? "GPU" : "CPU";
-    char buf[160];
+    const char* mute = audio_.muted() ? " MUTE" : "";
+    char buf[192];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch [%s]  |  Player %d  -  %d AI  |  Arrows/A D  |  R reset  |  ESC quit",
-                  mode, playerScore_, aiScore_);
+                  "KugelMatch [%s]%s  |  %d - %d  |  %.0f FPS  |  M mute  +/- vol  |  ESC",
+                  mode, mute, playerScore_, aiScore_, fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
 }
 
@@ -372,11 +418,18 @@ void Game::run() {
                 running_ = false;
             }
             if (e.type == SDL_KEYDOWN) {
-                if (e.key.keysym.sym == SDLK_ESCAPE) {
+                switch (e.key.keysym.sym) {
+                case SDLK_ESCAPE:
                     running_ = false;
-                }
-                if (e.key.keysym.sym == SDLK_p) {
+                    break;
+                case SDLK_p:
                     paused_ = !paused_;
+                    break;
+                case SDLK_m:
+                    audio_.toggleMute();
+                    break;
+                default:
+                    break;
                 }
             }
         }
@@ -387,15 +440,17 @@ void Game::run() {
         if (dt > 0.05f) {
             dt = 0.05f;
         }
+        if (dt > 1e-6f) {
+            float inst = 1.0f / dt;
+            fpsSmooth_ = fpsSmooth_ > 1.0f ? (fpsSmooth_ * 0.9f + inst * 0.1f) : inst;
+        }
 
         handleInput(dt);
         update(dt);
         buildScene();
 
-        // Camera attached to player paddle + shake offset
         float sx = shakeOffsetX_ * shake_;
         float sy = shakeOffsetY_ * shake_;
-        // Slight high-frequency jitter while shake is active
         if (shake_ > 0.001f) {
             sx += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.35f;
             sy += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.25f;
