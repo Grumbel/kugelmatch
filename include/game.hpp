@@ -2,11 +2,11 @@
 // Copyright 2024–2026 Ingo Ruhnke <grumbel@gmail.com>
 #pragma once
 
+#include "audio.hpp"
 #include "gpu_raytracer.hpp"
 #include "raytracer.hpp"
 #include "scene.hpp"
 #include <SDL.h>
-#include <memory>
 
 enum class RenderBackend { Cpu, Gpu };
 
@@ -29,6 +29,7 @@ private:
 
     CpuRaytracer cpuRt_;
     GpuRaytracer gpuRt_;
+    Audio audio_;
     Scene scene_;
     Camera camera_;
 
@@ -45,6 +46,12 @@ private:
     bool running_ = false;
     bool paused_ = false;
 
+    // Camera shake (world units), decays over time
+    float shake_ = 0.0f;
+    float shakeTime_ = 0.0f;
+    float shakeOffsetX_ = 0.0f;
+    float shakeOffsetY_ = 0.0f;
+
     static constexpr float FIELD_W = 8.0f;
     static constexpr float FIELD_L = 16.0f;
     static constexpr float PADDLE_W = 1.6f;
@@ -59,4 +66,6 @@ private:
     void buildScene();
     void presentCpu();
     void updateHud();
+    void triggerShake(float amount);
+    void updateShake(float dt);
 };

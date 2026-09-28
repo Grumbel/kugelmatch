@@ -4,18 +4,15 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `ebd5918` — Wire dual backends, CLI, and packaging
+**Tip:** (see latest commit after this update) — metallic clanks + camera shake
 
-## Done this session
+## Done
 
-- [x] Added AGENTS.md / TODO.md / COPYING / .gitignore
-- [x] Extracted shared Scene + Camera into scene.hpp
-- [x] Cleaned CPU raytracer (CpuRaytracer)
-- [x] Added GPU backend: OpenGL 3.3 core, fullscreen triangle, full raytracing in fragment shader (no scene meshes)
-- [x] Single binary with `--cpu` / `--gpu` (default CPU)
-- [x] Updated flake.nix + CMake (pkg-config SDL2, OpenGL)
-- [x] README updated
-- [x] SPDX / GPLv3+ headers on new and touched sources
+- [x] Dual CPU/GPU raytracer backends
+- [x] AGENTS.md / TODO.md / COPYING / packaging
+- [x] Procedural metallic clank sounds on paddle/wall collisions (SDL audio)
+- [x] Soft thud on scoring
+- [x] Camera shake on collisions (stronger for player paddle hits)
 
 ## Open / follow-ups
 
@@ -23,15 +20,18 @@ Base of this work line: `a7bcc21` (Initial checkin)
 - [ ] Optional: more materials / soft shadows with multiple samples on GPU
 - [ ] Score overlay in-framebuffer (currently window title only)
 - [ ] Windows / macOS build notes
+- [ ] Optional: mute key / volume control
 
 ## Bundle naming for this stack
 
 Base short: `a7bcc21`
-Next bundle: `kugelmatch-001.1-gpu-raytracer-a7bcc21.bundle`
+Previous: `kugelmatch-001.1-gpu-raytracer-a7bcc21.bundle`
+Next: `kugelmatch-002.1-audio-shake-a7bcc21.bundle`
 
 ## Notes for next agent
 
-- GPU shader embeds scene limits (MAX_SPHERES=8, MAX_BOXES=4, MAX_PLANES=8); keep C++ upload arrays in sync with shaders/raytrace.frag and embedded_frag.inc.
-- Do not introduce triangle meshes of the playfield — both backends must remain pure raytracers.
-- After producing a new tip bundle, delete superseded intermediate bundles for this project.
-- Run from a directory that can see `shaders/` or rely on the embedded fallback.
+- Audio is procedural (no WAV assets); `Audio` mixes up to 8 voices in an SDL float callback.
+- Camera shake is applied in `Game::run` as offset on camPos/lookAt; decay in `updateShake`.
+- GPU shader limits (MAX_SPHERES etc.) must stay in sync with C++ upload.
+- Both backends remain pure raytracers — no scene meshes.
+- After a new tip bundle, delete superseded intermediate bundles for this project.

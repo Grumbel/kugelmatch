@@ -21,6 +21,7 @@ add_executable(kugelmatch
   src/raytracer.cpp
   src/gpu_raytracer.cpp
   src/game.cpp
+  src/audio.cpp
 )
 
 target_include_directories(kugelmatch PRIVATE

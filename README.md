@@ -57,5 +57,7 @@ cmake --build . -j
 - CPU: `std::thread` + atomic row queue
 - GPU: GLSL 330 core fragment shader; scene uploaded as uniform arrays (no meshes)
 - Shaders live in `shaders/`; an embedded copy is compiled in as fallback
+- Procedural **metallic clank** sounds on paddle/wall hits (SDL audio, no sample files)
+- Short **camera shake** on collisions (stronger for player paddle hits)
 
 License: GPLv3+
