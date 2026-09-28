@@ -4,18 +4,15 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `ce70813` — polish (mute, serve delay, flash, vignette, FPS)
+**Tip:** `863a9f8` — resize + fullscreen (F11 / Alt+Enter)
 
 ## Done
 
 - [x] Dual CPU/GPU raytracer backends
-- [x] Procedural metallic clanks + soft thud
-- [x] Camera shake on collisions
-- [x] Mute (M) and master volume (+/−)
-- [x] Serve delay after points
-- [x] Ball impact flash
-- [x] Soft vignette (CPU + GPU)
-- [x] FPS in window title
+- [x] Procedural audio, mute/volume, camera shake
+- [x] Serve delay, impact flash, vignette, FPS HUD
+- [x] Resizable window with letterboxed 640×480 presentation
+- [x] Desktop fullscreen (F11, Alt+Enter)
 
 ## Open / follow-ups
 
@@ -27,13 +24,13 @@ Base of this work line: `a7bcc21` (Initial checkin)
 ## Bundle naming for this stack
 
 Base short: `a7bcc21`
-Previous tip bundle: `kugelmatch-002.1-audio-shake-a7bcc21.bundle`
-Next: `kugelmatch-003.1-polish-a7bcc21.bundle`
+Previous: `kugelmatch-003.1-polish-a7bcc21.bundle`
+Next: `kugelmatch-004.1-resize-fullscreen-a7bcc21.bundle`
 
 ## Notes for next agent
 
-- Audio mute/master are atomics; safe from the SDL callback.
-- Serve uses `serveTimer_` / `queueServe`; physics paused while serving.
-- Vignette lives in CPU `renderRow` and GLSL `main`; regenerate `embedded_frag.inc` if the frag shader changes.
-- Both backends remain pure raytracers — no scene meshes.
+- Internal resolution is always 640×480. Never scale the ray count with the window.
+- GPU: FBO + `glBlitFramebuffer` letterbox in `present()`; track drawable size for HiDPI.
+- CPU: `SDL_RenderSetLogicalSize(640,480)`.
+- Fullscreen uses `SDL_WINDOW_FULLSCREEN_DESKTOP` (borderless), not exclusive mode.
 - After a new tip bundle, delete superseded intermediate bundles for this project.
