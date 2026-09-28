@@ -4,13 +4,12 @@
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `da45eb7` — fix GLSL reserved word `half`
+**Tip:** `7142651` — wall-mounted decorative spheres
 
 ## Done
 
-- [x] Dual CPU/GPU raytracer backends
-- [x] Audio, shake, polish, resize/fullscreen
-- [x] Fix GLSL compile: rename `half` → `halfExtent`
+- [x] Dual backends, audio, polish, resize/fullscreen, GLSL half fix
+- [x] Decorative spheres moved to side/back walls (7 orbs + ball)
 
 ## Open / follow-ups
 
@@ -22,11 +21,11 @@ Base of this work line: `a7bcc21` (Initial checkin)
 ## Bundle naming for this stack
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-004.1-resize-fullscreen-a7bcc21.bundle`
-Next: `kugelmatch-005.1-fix-glsl-half-a7bcc21.bundle`
+Previous: `kugelmatch-005.1-fix-glsl-half-a7bcc21.bundle`
+Next: `kugelmatch-006.1-wall-decos-a7bcc21.bundle`
 
 ## Notes for next agent
 
-- Avoid GLSL reserved names (`half`, `fixed`, `input`, etc.) in shaders.
-- Always regenerate `src/embedded_frag.inc` when editing `shaders/raytrace.frag`.
+- GPU `MAX_SPHERES` is 8 (1 ball + 7 decos). Raise shader + C++ limits together if adding more.
+- Deco spheres are visual only; physics only tracks the match ball.
 - After a new tip bundle, delete superseded intermediate bundles for this project.
