@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2024-2026 Ingo Ruhnke <grumbel@gmail.com>
 #version 330 core
 // Fullscreen triangle via gl_VertexID (no VBO required)
 out vec2 v_uv;

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2024-2026 Ingo Ruhnke <grumbel@gmail.com>
 cmake_minimum_required(VERSION 3.16)
 project(kugelmatch LANGUAGES CXX)
 

@@ -1,4 +1,6 @@
 const char* kEmbeddedFrag = R"GLSL(
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2024-2026 Ingo Ruhnke <grumbel@gmail.com>
 #version 330 core
 // Full raytracer in a fragment shader. No scene meshes — pure analytic intersections.
 in vec2 v_uv;
