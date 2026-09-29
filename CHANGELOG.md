@@ -5,7 +5,12 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
-## 1.2.9
+## 1.2.10
+
+- Fix A/D and arrow paddle controls (screen-left = -X with paddle camera)
+- Soft-limit ball angle after paddle hits (min |VZ|, max |VX|/|VZ|)
+
+
 
 - 2P game-over HUD/banner: P2 WINS / "P2" instead of AI/LOSE
 - Attract demo shows ball trail

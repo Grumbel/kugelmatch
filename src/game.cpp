@@ -858,6 +858,12 @@ void Game::update(float dt) {
                         ballVX_ *= 14.0f / sp;
                         ballVZ_ *= 14.0f / sp;
                     }
+                    if (std::abs(ballVZ_) < 4.0f) {
+                        ballVZ_ = (ballVZ_ >= 0.0f ? 4.0f : -4.0f);
+                    }
+                    if (std::abs(ballVX_) > std::abs(ballVZ_) * 1.6f) {
+                        ballVX_ = (ballVX_ >= 0.0f ? 1.0f : -1.0f) * std::abs(ballVZ_) * 1.6f;
+                    }
                     float pitch = 0.85f + std::min(0.4f, sp * 0.03f) + std::abs(offset) * 0.15f;
                     audio_.playClank(pitch, 0.75f);
                     triggerShake(0.12f + std::min(0.08f, sp * 0.008f));
@@ -878,6 +884,12 @@ void Game::update(float dt) {
                     if (sp > 14.0f) {
                         ballVX_ *= 14.0f / sp;
                         ballVZ_ *= 14.0f / sp;
+                    }
+                    if (std::abs(ballVZ_) < 4.0f) {
+                        ballVZ_ = (ballVZ_ >= 0.0f ? 4.0f : -4.0f);
+                    }
+                    if (std::abs(ballVX_) > std::abs(ballVZ_) * 1.6f) {
+                        ballVX_ = (ballVX_ >= 0.0f ? 1.0f : -1.0f) * std::abs(ballVZ_) * 1.6f;
                     }
                     audio_.playClank(0.75f + std::min(0.35f, sp * 0.025f), 0.55f);
                     triggerShake(0.05f);
