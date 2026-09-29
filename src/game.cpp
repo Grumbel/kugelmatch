@@ -343,6 +343,41 @@ void Game::cycleTheme() {
     persistConfig();
 }
 
+void Game::applyQualityPreset() {
+    switch (quality_) {
+    case Quality::Low:
+        maxBounces_ = 0;
+        shadowSamples_ = 1;
+        cpuScale_ = 0.5f;
+        break;
+    case Quality::Medium:
+        maxBounces_ = 1;
+        shadowSamples_ = 2;
+        cpuScale_ = 0.75f;
+        break;
+    case Quality::High:
+        maxBounces_ = 2;
+        shadowSamples_ = 4;
+        cpuScale_ = 1.0f;
+        break;
+    case Quality::Ultra:
+    default:
+        maxBounces_ = 3;
+        shadowSamples_ = 8;
+        cpuScale_ = 1.25f;
+        break;
+    }
+}
+
+void Game::cycleQuality() {
+    quality_ = static_cast<Quality>((static_cast<int>(quality_) + 1) % 4);
+    applyQualityPreset();
+    // Force CPU FB rebuild at new scale
+    fbW_ = fbH_ = 0;
+    audio_.playSoftThud(0.65f + static_cast<float>(quality_) * 0.12f, 0.25f);
+    persistConfig();
+}
+
 void Game::adjustExposure(float delta) {
     exposure_ += delta;
     if (exposure_ < 0.1f) exposure_ = 0.1f;
@@ -385,6 +420,7 @@ AppConfig Game::currentConfig() const {
     c.shadowSamples = shadowSamples_;
     c.exposure = exposure_;
     c.theme = static_cast<int>(theme_);
+    c.quality = static_cast<int>(quality_);
     c.slowmoReplay = slowmoReplay_;
     c.cpuMaxWidth = cpuMaxWidth_;
     c.cpuMaxHeight = cpuMaxHeight_;
@@ -414,10 +450,18 @@ void Game::applyConfig(const AppConfig& cfg) {
     if (exposure_ < 0.1f) exposure_ = 0.1f;
     if (exposure_ > 3.0f) exposure_ = 3.0f;
     theme_ = static_cast<Theme>(std::max(0, std::min(3, cfg.theme)));
+    quality_ = static_cast<Quality>(std::max(0, std::min(3, cfg.quality)));
+    // quality applied after other fields via applyQualityPreset when cycling;
+    // on load, trust explicit bounces/shadows/scale if present — still sync preset index
     slowmoReplay_ = cfg.slowmoReplay;
     cpuMaxWidth_ = cfg.cpuMaxWidth;
     cpuMaxHeight_ = cfg.cpuMaxHeight;
-    cpuScale_ = cfg.cpuScale;
+    // Prefer explicit quality preset for bounces/shadows/scale when loading
+    applyQualityPreset();
+    // Allow file to override scale if set unusually — re-read after preset
+    if (cfg.cpuScale != 1.0f) {
+        cpuScale_ = cfg.cpuScale;
+    }
     if (cpuScale_ < 0.25f) cpuScale_ = 0.25f;
     if (cpuScale_ > 2.0f) cpuScale_ = 2.0f;
     audio_.setMasterVolume(cfg.volume);
@@ -1339,8 +1383,11 @@ void Game::updateHud() {
     }
     char buf[320];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch " KUGELMATCH_VERSION_STRING " [%s]%s | %s | %s %s | to%d | %s | refl%d sh%d exp%.2f %s | %.0fFPS",
+                  "KugelMatch " KUGELMATCH_VERSION_STRING " [%s]%s | %s | %s %s | to%d | %s | %s refl%d sh%d exp%.2f %s | %.0fFPS",
                   mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
+                  (quality_ == Quality::Low) ? "LOW" :
+                  (quality_ == Quality::Medium) ? "MED" :
+                  (quality_ == Quality::High) ? "HIGH" : "ULTRA",
                   maxBounces_, shadowSamples_, exposure_,
                   vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
@@ -1483,6 +1530,10 @@ void Game::run() {
                     break;
                 case SDLK_0:
                     cycleTheme();
+                    break;
+                case SDLK_q:
+                case SDLK_F10:
+                    cycleQuality();
                     break;
                 case SDLK_F9:
                     slowmoReplay_ = !slowmoReplay_;

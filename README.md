@@ -3,7 +3,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 -->
 
-# KugelMatch 1.2.1
+# KugelMatch 1.2.2
 
 Classic Pong reimagined as a **90s-style raytracer**.
 
@@ -27,6 +27,7 @@ Shared look: checkerboard floor + walls, reflective **mirror ball**, camera lock
 | ESC | Pause → attract → quit |
 | F8 | Switch CPU ↔ GPU |
 | F9 | Toggle slow-mo goal replay |
+| Q / F10 | Cycle quality preset (Low→Ultra) |
 | F11 / Alt+Enter | Fullscreen |
 
 ### Play

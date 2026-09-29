@@ -34,6 +34,13 @@ enum class Theme {
     Ember
 };
 
+enum class Quality {
+    Low,
+    Medium,
+    High,
+    Ultra
+};
+
 class Game {
 public:
     explicit Game(RenderBackend backend);
@@ -55,6 +62,7 @@ private:
     int shadowSamples_ = 4;
     float exposure_ = 1.0f;
     Theme theme_ = Theme::Classic;
+    Quality quality_ = Quality::High;
     float replayTimer_ = 0.0f;
     float replayDuration_ = 1.8f;
     bool slowmoReplay_ = true;
@@ -148,6 +156,8 @@ private:
     void addPauseBanner(Scene& scene) const;
     void cycleShadowSamples();
     void cycleTheme();
+    void cycleQuality();
+    void applyQualityPreset();
     void adjustExposure(float delta);
     void paddleColors(Vec3& player, Vec3& farPad) const;
     void applyVsync();

@@ -116,6 +116,8 @@ bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {
             cfg.cpuMaxHeight = std::atoi(val.c_str());
         } else if (key == "cpu_scale") {
             cfg.cpuScale = std::strtof(val.c_str(), nullptr);
+        } else if (key == "quality") {
+            cfg.quality = std::atoi(val.c_str());
         }
     }
     if (cfg.maxBounces < 0) {
@@ -165,5 +167,6 @@ bool saveConfig(const AppConfig& cfg, std::string* savedTo) {
     out << "cpu_max_width=" << cfg.cpuMaxWidth << "\n";
     out << "cpu_max_height=" << cfg.cpuMaxHeight << "\n";
     out << "cpu_scale=" << cfg.cpuScale << "\n";
+    out << "quality=" << cfg.quality << "\n";
     return true;
 }

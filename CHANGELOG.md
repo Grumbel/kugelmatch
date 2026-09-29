@@ -5,7 +5,12 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
+## 1.2.2
+
+- Quality presets Low/Medium/High/Ultra (**Q** / **F10**): bounces, soft-shadow samples, CPU scale
+
 ## 1.2.1
+
 
 - Voxel **PAUSE** banner and dimmed lighting while paused
 - CPU render scale (`cpu_scale` in config, 0.25–2.0) before resolution clamp
