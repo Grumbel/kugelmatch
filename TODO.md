@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — theme floor/walls, skip replay, controls docs
+**Tip:** `49e68bd` — theme floor, skip replay, docs
 
 ## Done
 
