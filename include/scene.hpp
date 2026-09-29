@@ -53,6 +53,8 @@ struct Scene {
     Vec3 ambient{0.12f, 0.12f, 0.15f};
     Vec3 skyColor{0.02f, 0.02f, 0.05f};
     int maxBounces = 3; // reflection depth 0..3
+    int shadowSamples = 4; // soft shadow rays 1..8
+    float exposure = 1.0f;
 
     void clear() {
         spheres.clear();

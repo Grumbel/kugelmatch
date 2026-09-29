@@ -9,28 +9,28 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `99b0ccc` — soft shadows, MATCH banner, frame cap
+**Tip:** (pending) — WIN/LOSE, shadow samples, exposure
 
 ## Done
 
-- [x] Match-point lighting, serve countdown, vsync
-- [x] Soft shadows (4-sample disk) on **CPU and GPU**
-- [x] Block-letter **MATCH** flash on match point
-- [x] Frame-time sleep when vsync off (`target_fps` in config, default 60; 0 = uncapped)
+- [x] Soft shadows, MATCH banner, frame cap
+- [x] Configurable soft-shadow samples 1/2/4/8 (key **7**, config `shadow_samples`)
+- [x] Voxel **WIN** / **LOSE** banners on game over
+- [x] Exposure on CPU + GPU (`u_exposure` / scene.exposure); slight pulse on game over
 
 ## Open / follow-ups
 
-- [ ] Optional higher soft-shadow sample count via config
-- [ ] WIN/LOSE voxel banners on game over
-- [ ] Subtle post-tone (exposure) on GPU only
+- [ ] Manual exposure key adjust
+- [ ] AI personality / paddle color themes
+- [ ] Replay last point camera
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-015.1-matchpoint-countdown-vsync-a7bcc21.bundle`
-Next: `kugelmatch-016.1-softshadow-match-banner-a7bcc21.bundle`
+Previous: `kugelmatch-016.1-softshadow-match-banner-a7bcc21.bundle`
+Next: `kugelmatch-017.1-winlose-shadow-samples-a7bcc21.bundle`
 
 ## Notes
 
 - GPU: MAX_SPHERES=16, MAX_BOXES=128
-- Config: vsync, target_fps (also alias `fps`)
+- Soft-shadow loop is fixed at 8 with early break on sample count (GLSL-friendly)

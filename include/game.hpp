@@ -45,6 +45,8 @@ private:
     int maxBounces_ = 3;
     bool vsync_ = true;
     int targetFps_ = 60;
+    int shadowSamples_ = 4;
+    float exposure_ = 1.0f;
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* sdlRenderer_ = nullptr;
@@ -123,6 +125,8 @@ private:
     void addTitleGeometry(Scene& scene) const;
     void addServeCountdown(Scene& scene) const;
     void addMatchPointBanner(Scene& scene) const;
+    void addGameOverBanner(Scene& scene) const;
+    void cycleShadowSamples();
     void applyVsync();
     bool isMatchPoint() const;
     void applyConfig(const AppConfig& cfg);

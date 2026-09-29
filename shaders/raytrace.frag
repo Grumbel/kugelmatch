@@ -21,6 +21,8 @@ uniform vec3 u_lightColor;
 uniform vec3 u_ambient;
 uniform vec3 u_skyColor;
 uniform int u_maxBounces;
+uniform int u_shadowSamples;
+uniform float u_exposure;
 
 uniform int u_numSpheres;
 uniform vec3 u_sphereCenter[MAX_SPHERES];
@@ -145,17 +147,22 @@ Hit intersect(vec3 ro, vec3 rd) {
 }
 
 // Local lighting for a single hit (no recursion — Mesa forbids recursive GLSL).
-// Soft shadow: 4 samples on a small disk around the light.
+// Soft shadow: up to 8 fixed disk samples; u_shadowSamples selects how many.
 float softShadow(vec3 p, vec3 n) {
     float lit = 0.0;
-    // Fixed disk offsets (no RNG needed; stable frame-to-frame)
-    vec3 offsets[4];
+    vec3 offsets[8];
     offsets[0] = vec3( 0.35, 0.0,  0.15);
     offsets[1] = vec3(-0.25, 0.1, -0.30);
     offsets[2] = vec3( 0.10, 0.0, -0.35);
     offsets[3] = vec3(-0.15, 0.05, 0.40);
+    offsets[4] = vec3( 0.40, 0.05, -0.10);
+    offsets[5] = vec3(-0.40, 0.0,  0.20);
+    offsets[6] = vec3( 0.05, 0.1,  0.45);
+    offsets[7] = vec3(-0.05, 0.0, -0.45);
     float lightRadius = 0.55;
-    for (int i = 0; i < 4; ++i) {
+    int samples = clamp(u_shadowSamples, 1, 8);
+    for (int i = 0; i < 8; ++i) {
+        if (i >= samples) break;
         vec3 lp = u_lightPos + offsets[i] * lightRadius;
         vec3 toL = lp - p;
         float dist = length(toL);
@@ -165,8 +172,7 @@ float softShadow(vec3 p, vec3 n) {
             lit += 1.0;
         }
     }
-    // Map fully lit → 1.0, fully occluded → 0.22 (ambient-ish floor)
-    return mix(0.22, 1.0, lit * 0.25);
+    return mix(0.22, 1.0, lit / float(samples));
 }
 
 vec3 shadeHit(Hit h, vec3 rd) {
@@ -233,7 +239,8 @@ void main() {
     float vig = clamp(1.0 - 0.35 * dot(n, n), 0.0, 1.0);
     col *= vig;
 
-    // Gamma
+    // Exposure + gamma
+    col *= max(u_exposure, 0.1);
     col = sqrt(col);
     fragColor = vec4(col, 1.0);
 }

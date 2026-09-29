@@ -321,6 +321,20 @@ void Game::cycleBounces() {
     persistConfig();
 }
 
+void Game::cycleShadowSamples() {
+    static const int opts[] = {1, 2, 4, 8};
+    int idx = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (opts[i] == shadowSamples_) {
+            idx = i;
+            break;
+        }
+    }
+    shadowSamples_ = opts[(idx + 1) % 4];
+    audio_.playSoftThud(0.8f + shadowSamples_ * 0.05f, 0.2f);
+    persistConfig();
+}
+
 AppConfig Game::currentConfig() const {
     AppConfig c;
     c.useGpu = (backend_ == RenderBackend::Gpu);
@@ -333,6 +347,8 @@ AppConfig Game::currentConfig() const {
     c.maxBounces = maxBounces_;
     c.vsync = vsync_;
     c.targetFps = targetFps_;
+    c.shadowSamples = shadowSamples_;
+    c.exposure = exposure_;
     if (window_) {
         Uint32 flags = SDL_GetWindowFlags(window_);
         c.fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
@@ -353,6 +369,10 @@ void Game::applyConfig(const AppConfig& cfg) {
     targetFps_ = cfg.targetFps;
     if (targetFps_ < 0) targetFps_ = 0;
     if (targetFps_ > 300) targetFps_ = 300;
+    shadowSamples_ = std::max(1, std::min(8, cfg.shadowSamples));
+    exposure_ = cfg.exposure;
+    if (exposure_ < 0.1f) exposure_ = 0.1f;
+    if (exposure_ > 3.0f) exposure_ = 3.0f;
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
 }
@@ -772,6 +792,61 @@ void Game::addScoreboard(Scene& scene) const {
 
 
 
+
+void Game::addGameOverBanner(Scene& scene) const {
+    if (state_ != GameState::GameOver) {
+        return;
+    }
+    auto glyph = [](char ch) -> const int* {
+        static const int W[7] = {0b10001,0b10001,0b10001,0b10101,0b10101,0b11011,0b10001};
+        static const int I[7] = {0b01110,0b00100,0b00100,0b00100,0b00100,0b00100,0b01110};
+        static const int N[7] = {0b10001,0b11001,0b10101,0b10011,0b10001,0b10001,0b10001};
+        static const int L[7] = {0b10000,0b10000,0b10000,0b10000,0b10000,0b10000,0b11111};
+        static const int O[7] = {0b01110,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110};
+        static const int S[7] = {0b01111,0b10000,0b10000,0b01110,0b00001,0b00001,0b11110};
+        static const int E[7] = {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111};
+        switch (ch) {
+        case 'W': return W;
+        case 'I': return I;
+        case 'N': return N;
+        case 'L': return L;
+        case 'O': return O;
+        case 'S': return S;
+        case 'E': return E;
+        default: return I;
+        }
+    };
+    const char* word = playerWon_ ? "WIN" : "LOSE";
+    float pulse = 0.5f + 0.5f * std::sin(gameOverTime_ * 5.0f);
+    float cell = 0.16f + 0.03f * pulse;
+    float gap = 0.2f;
+    int len = playerWon_ ? 3 : 4;
+    float width = len * (5 * cell + gap) - gap;
+    float startX = -width * 0.5f;
+    float baseY = 2.1f + 0.15f * pulse;
+    float z = FIELD_L * 0.5f - 1.2f;
+    Vec3 col = playerWon_
+                   ? Vec3(0.45f, 1.0f, 0.55f)
+                   : Vec3(1.0f, 0.35f + 0.2f * pulse, 0.3f);
+    for (int ci = 0; word[ci]; ++ci) {
+        const int* rows = glyph(word[ci]);
+        float ox = startX + ci * (5 * cell + gap);
+        for (int r = 0; r < 7; ++r) {
+            int bits = rows[r];
+            for (int c = 0; c < 5; ++c) {
+                if (bits & (1 << (4 - c))) {
+                    float x0 = ox + c * cell;
+                    float y0 = baseY + (6 - r) * cell;
+                    pushBox(scene,
+                            Vec3(x0, y0, z),
+                            Vec3(x0 + cell * 0.85f, y0 + cell * 0.85f, z + 0.1f),
+                            col, 0.65f);
+                }
+            }
+        }
+    }
+}
+
 void Game::addMatchPointBanner(Scene& scene) const {
     if (state_ != GameState::Play || !isMatchPoint()) {
         return;
@@ -1009,6 +1084,7 @@ void Game::buildScene() {
     }
     addServeCountdown(scene_);
     addMatchPointBanner(scene_);
+    addGameOverBanner(scene_);
 
     Sphere ball;
     ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
@@ -1053,6 +1129,8 @@ void Game::buildScene() {
 
     scene_.lightPos = Vec3(0.0f, WALL_H - 0.5f, FIELD_L * 0.45f);
     scene_.maxBounces = maxBounces_;
+    scene_.shadowSamples = shadowSamples_;
+    scene_.exposure = exposure_;
 
     if (state_ == GameState::Play && isMatchPoint()) {
         // Warm, pulsing key light on match point
@@ -1065,8 +1143,10 @@ void Game::buildScene() {
         float pulse = 0.5f + 0.5f * std::sin(gameOverTime_ * 4.0f);
         if (playerWon_) {
             scene_.lightColor = Vec3(0.85f + 0.4f * pulse, 1.15f + 0.25f * pulse, 0.9f);
+            scene_.exposure = exposure_ * (1.05f + 0.15f * pulse);
         } else {
             scene_.lightColor = Vec3(1.25f, 0.4f + 0.25f * pulse, 0.35f);
+            scene_.exposure = exposure_ * (0.9f + 0.1f * pulse);
         }
         scene_.ambient = Vec3(0.1f, 0.1f, 0.12f);
     } else {
@@ -1191,10 +1271,10 @@ void Game::updateHud() {
     }
     char buf[320];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | refl%d %s | %.0fFPS | "
-                  "1-5 opts 6 vsync | F8 | ESC",
+                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | refl%d sh%d %s | %.0fFPS | "
+                  "1-5 opts 6 vsync 7 shadows | F8 | ESC",
                   mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
-                  maxBounces_, vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
+                  maxBounces_, shadowSamples_, vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
 }
 
@@ -1313,6 +1393,9 @@ void Game::run() {
                     break;
                 case SDLK_5:
                     cycleBounces();
+                    break;
+                case SDLK_7:
+                    cycleShadowSamples();
                     break;
                 case SDLK_6:
                     vsync_ = !vsync_;

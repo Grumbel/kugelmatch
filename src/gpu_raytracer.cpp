@@ -295,6 +295,8 @@ void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
     loc3("u_ambient", scene.ambient);
     loc3("u_skyColor", scene.skyColor);
     loc1i("u_maxBounces", scene.maxBounces);
+    loc1i("u_shadowSamples", scene.shadowSamples);
+    loc1f("u_exposure", scene.exposure);
 
     int ns = std::min(static_cast<int>(scene.spheres.size()), MAX_SPHERES);
     loc1i("u_numSpheres", ns);

@@ -16,6 +16,8 @@ struct AppConfig {
     bool fullscreen = false;
     bool vsync = true;
     int targetFps = 60; // 0 = uncapped when vsync off
+    int shadowSamples = 4; // 1..8
+    float exposure = 1.0f;
 };
 
 // Load from path (or default locations). Returns true if a file was read.

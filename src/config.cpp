@@ -102,6 +102,10 @@ bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {
             cfg.vsync = (val == "1" || val == "true");
         } else if (key == "target_fps" || key == "fps") {
             cfg.targetFps = std::atoi(val.c_str());
+        } else if (key == "shadow_samples" || key == "shadows") {
+            cfg.shadowSamples = std::atoi(val.c_str());
+        } else if (key == "exposure") {
+            cfg.exposure = std::strtof(val.c_str(), nullptr);
         }
     }
     if (cfg.maxBounces < 0) {
@@ -144,5 +148,7 @@ bool saveConfig(const AppConfig& cfg, std::string* savedTo) {
     out << "fullscreen=" << (cfg.fullscreen ? 1 : 0) << "\n";
     out << "vsync=" << (cfg.vsync ? 1 : 0) << "\n";
     out << "target_fps=" << cfg.targetFps << "\n";
+    out << "shadow_samples=" << cfg.shadowSamples << "\n";
+    out << "exposure=" << cfg.exposure << "\n";
     return true;
 }

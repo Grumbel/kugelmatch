@@ -138,14 +138,17 @@ Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
     Vec3 toLight = (scene.lightPos - h.point).normalized();
     float ndotl = std::max(0.0f, h.normal.dot(toLight));
 
-    // Soft shadow: 4 samples on a small disk around the light
+    // Soft shadow: up to 8 disk samples (scene.shadowSamples)
     float shadowFactor = 0.0f;
-    const Vec3 offsets[4] = {
+    const Vec3 offsets[8] = {
         Vec3(0.35f, 0.0f, 0.15f), Vec3(-0.25f, 0.1f, -0.30f),
         Vec3(0.10f, 0.0f, -0.35f), Vec3(-0.15f, 0.05f, 0.40f),
+        Vec3(0.40f, 0.05f, -0.10f), Vec3(-0.40f, 0.0f, 0.20f),
+        Vec3(0.05f, 0.1f, 0.45f), Vec3(-0.05f, 0.0f, -0.45f),
     };
     const float lightRadius = 0.55f;
-    for (int i = 0; i < 4; ++i) {
+    int samples = std::max(1, std::min(8, scene.shadowSamples));
+    for (int i = 0; i < samples; ++i) {
         Vec3 lp = scene.lightPos + offsets[i] * lightRadius;
         Vec3 toL = lp - h.point;
         float dist = toL.length();
@@ -158,7 +161,7 @@ Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
             shadowFactor += 1.0f;
         }
     }
-    shadowFactor = 0.22f + 0.78f * (shadowFactor * 0.25f);
+    shadowFactor = 0.22f + 0.78f * (shadowFactor / static_cast<float>(samples));
 
     col += h.color * scene.lightColor * ndotl * shadowFactor;
 
@@ -190,6 +193,7 @@ void CpuRaytracer::renderRow(const Scene& scene, const Camera& cam, uint32_t* fb
         ray.dir = (cam.forward + cam.right * u + cam.up * v).normalized();
 
         Vec3 col = shade(ray, scene, 0);
+        col = col * std::max(0.1f, scene.exposure);
 
         // Soft 90s-style vignette
         float nx = (x + 0.5f) / width * 2.0f - 1.0f;
