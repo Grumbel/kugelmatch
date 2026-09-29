@@ -3,7 +3,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 -->
 
-# KugelMatch
+# KugelMatch 1.2.0
 
 Classic Pong reimagined as a **90s-style raytracer**.
 

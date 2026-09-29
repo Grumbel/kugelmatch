@@ -9,26 +9,27 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `2a98937` — glyphs module, Nix CI
+**Tip:** (pending) — v1.2.0, full alphabet, CHANGELOG
 
 ## Done
 
-- [x] CI Ubuntu + **Nix** build jobs
-- [x] Shared `glyphs` module (`addWord`, `addDigit7`) — banners/title/hints DRY
-- [x] Attract SPACE/PONG/GO, trails, themes, scoreboard, etc.
+- [x] Glyphs module + Nix CI
+- [x] Full A–Z 5×7 alphabet (+ space)
+- [x] Attract cycle SPACE → PONG → OPTS → GO
+- [x] Version **1.2.0** (`version.hpp`, flake, window title)
+- [x] CHANGELOG.md
 
 ## Open / follow-ups
 
-- [ ] Expand glyph alphabet as needed
-- [ ] Version bump / release tag notes
+- [ ] Tag `v1.2.0` on upstream when ready
+- [ ] Optional high-DPI CPU supersample
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-022.1-ci-attract-cycle-a7bcc21.bundle`
-Next: `kugelmatch-023.1-glyphs-nix-ci-a7bcc21.bundle`
+Previous: `kugelmatch-023.1-glyphs-nix-ci-a7bcc21.bundle`
+Next: `kugelmatch-024.1-v1.2.0-alphabet-a7bcc21.bundle`
 
 ## Notes
 
-- New files: `include/glyphs.hpp`, `src/glyphs.cpp`
-- Banners call `glyphs::addWord` / `glyphs::addDigit7`
+- `KUGELMATCH_VERSION_STRING` in `include/version.hpp`

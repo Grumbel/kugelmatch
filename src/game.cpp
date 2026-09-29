@@ -2,6 +2,7 @@
 // Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>
 #include "game.hpp"
 #include "glyphs.hpp"
+#include "version.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -915,10 +916,10 @@ void Game::addAttractHint(Scene& scene) const {
     if (pulse < 0.28f) {
         return;
     }
-    int phase = static_cast<int>(attractTime_ / 2.8f) % 3;
-    const char* word = (phase == 0) ? "SPACE" : (phase == 1) ? "PONG" : "GO";
-    float cell = (phase == 2) ? 0.14f : 0.09f;
-    float gap = (phase == 2) ? 0.18f : 0.12f;
+    int phase = static_cast<int>(attractTime_ / 2.6f) % 4;
+    const char* word = (phase == 0) ? "SPACE" : (phase == 1) ? "PONG" : (phase == 2) ? "OPTS" : "GO";
+    float cell = (phase == 3) ? 0.14f : 0.09f;
+    float gap = (phase == 3) ? 0.18f : 0.12f;
     int len = 0;
     for (const char* q = word; *q; ++q) {
         ++len;
@@ -926,7 +927,8 @@ void Game::addAttractHint(Scene& scene) const {
     float width = len * (5 * cell + gap) - gap;
     float startX = -width * 0.5f;
     Vec3 col = (phase == 1) ? Vec3(0.55f + 0.3f * pulse, 0.85f, 1.0f)
-             : (phase == 2) ? Vec3(0.5f + 0.4f * pulse, 1.0f, 0.45f)
+             : (phase == 2) ? Vec3(0.75f, 0.7f + 0.2f * pulse, 1.0f)
+             : (phase == 3) ? Vec3(0.5f + 0.4f * pulse, 1.0f, 0.45f)
                             : Vec3(0.85f + 0.15f * pulse, 0.9f, 0.55f + 0.3f * pulse);
     glyphs::addWord(scene, word, startX, 1.15f, 2.4f, cell, gap, col, 0.4f);
 }
@@ -1310,7 +1312,7 @@ void Game::updateHud() {
     }
     char buf[320];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | refl%d sh%d exp%.2f %s | %.0fFPS",
+                  "KugelMatch " KUGELMATCH_VERSION_STRING " [%s]%s | %s | %s %s | to%d | %s | refl%d sh%d exp%.2f %s | %.0fFPS",
                   mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
                   maxBounces_, shadowSamples_, exposure_,
                   vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
