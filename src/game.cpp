@@ -256,6 +256,10 @@ void Game::queueServe(bool towardPlayer) {
     ballVX_ = 0.0f;
     ballVZ_ = 0.0f;
     ballFlash_ = 0.0f;
+    for (int i = 0; i < TRAIL_LEN; ++i) {
+        trailX_[i] = ballX_;
+        trailZ_[i] = ballZ_;
+    }
 }
 
 
@@ -1018,34 +1022,47 @@ void Game::addAttractHint(Scene& scene) const {
     if (state_ != GameState::Attract) {
         return;
     }
-    // Pulsing "SPACE" under the KUGEL title
     auto glyph = [](char ch) -> const int* {
         static const int S[7] = {0b01111,0b10000,0b10000,0b01110,0b00001,0b00001,0b11110};
         static const int P[7] = {0b11110,0b10001,0b10001,0b11110,0b10000,0b10000,0b10000};
         static const int A[7] = {0b01110,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001};
         static const int C[7] = {0b01110,0b10001,0b10000,0b10000,0b10000,0b10001,0b01110};
         static const int E[7] = {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111};
+        static const int O[7] = {0b01110,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110};
+        static const int N[7] = {0b10001,0b11001,0b10101,0b10011,0b10001,0b10001,0b10001};
+        static const int G[7] = {0b01110,0b10001,0b10000,0b10111,0b10001,0b10001,0b01110};
         switch (ch) {
         case 'S': return S;
         case 'P': return P;
         case 'A': return A;
         case 'C': return C;
         case 'E': return E;
+        case 'O': return O;
+        case 'N': return N;
+        case 'G': return G;
         default: return A;
         }
     };
     float pulse = 0.5f + 0.5f * std::sin(attractTime_ * 3.0f);
-    if (pulse < 0.35f) {
-        return; // blink off phase — saves boxes and draws the eye
+    if (pulse < 0.28f) {
+        return; // blink off — saves boxes
     }
-    float cell = 0.09f;
-    float gap = 0.12f;
-    const char* word = "SPACE";
-    float width = 5 * (5 * cell + gap) - gap;
+    // Cycle: SPACE -> PONG -> GO
+    int phase = static_cast<int>(attractTime_ / 2.8f) % 3;
+    const char* word = (phase == 0) ? "SPACE" : (phase == 1) ? "PONG" : "GO";
+    float cell = (phase == 2) ? 0.14f : 0.09f;
+    float gap = (phase == 2) ? 0.18f : 0.12f;
+    int len = 0;
+    for (const char* q = word; *q; ++q) {
+        ++len;
+    }
+    float width = len * (5 * cell + gap) - gap;
     float startX = -width * 0.5f;
     float baseY = 1.15f;
     float z = 2.4f;
-    Vec3 col(0.85f + 0.15f * pulse, 0.9f, 0.55f + 0.3f * pulse);
+    Vec3 col = (phase == 1) ? Vec3(0.55f + 0.3f * pulse, 0.85f, 1.0f)
+             : (phase == 2) ? Vec3(0.5f + 0.4f * pulse, 1.0f, 0.45f)
+                            : Vec3(0.85f + 0.15f * pulse, 0.9f, 0.55f + 0.3f * pulse);
     for (int ci = 0; word[ci]; ++ci) {
         const int* rows = glyph(word[ci]);
         float ox = startX + ci * (5 * cell + gap);
