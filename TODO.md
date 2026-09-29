@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — soft shadows, MATCH banner, frame cap
+**Tip:** `99b0ccc` — soft shadows, MATCH banner, frame cap
 
 ## Done
 
