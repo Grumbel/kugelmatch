@@ -108,6 +108,8 @@ bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {
             cfg.exposure = std::strtof(val.c_str(), nullptr);
         } else if (key == "theme") {
             cfg.theme = std::atoi(val.c_str());
+        } else if (key == "slowmo_replay" || key == "slowmo") {
+            cfg.slowmoReplay = (val == "1" || val == "true");
         }
     }
     if (cfg.maxBounces < 0) {
@@ -153,5 +155,6 @@ bool saveConfig(const AppConfig& cfg, std::string* savedTo) {
     out << "shadow_samples=" << cfg.shadowSamples << "\n";
     out << "exposure=" << cfg.exposure << "\n";
     out << "theme=" << cfg.theme << "\n";
+    out << "slowmo_replay=" << (cfg.slowmoReplay ? 1 : 0) << "\n";
     return true;
 }

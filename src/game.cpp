@@ -345,7 +345,6 @@ void Game::adjustExposure(float delta) {
     exposure_ += delta;
     if (exposure_ < 0.1f) exposure_ = 0.1f;
     if (exposure_ > 2.5f) exposure_ = 2.5f;
-    persistConfig();
 }
 
 void Game::paddleColors(Vec3& player, Vec3& farPad) const {
@@ -384,6 +383,7 @@ AppConfig Game::currentConfig() const {
     c.shadowSamples = shadowSamples_;
     c.exposure = exposure_;
     c.theme = static_cast<int>(theme_);
+    c.slowmoReplay = slowmoReplay_;
     if (window_) {
         Uint32 flags = SDL_GetWindowFlags(window_);
         c.fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
@@ -409,6 +409,7 @@ void Game::applyConfig(const AppConfig& cfg) {
     if (exposure_ < 0.1f) exposure_ = 0.1f;
     if (exposure_ > 3.0f) exposure_ = 3.0f;
     theme_ = static_cast<Theme>(std::max(0, std::min(3, cfg.theme)));
+    slowmoReplay_ = cfg.slowmoReplay;
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
 }
@@ -511,6 +512,13 @@ void Game::handleInput(float dt) {
     if (keys[SDL_SCANCODE_MINUS] || keys[SDL_SCANCODE_KP_MINUS]) {
         audio_.setMasterVolume(audio_.masterVolume() - 0.5f * dt);
     }
+    // Hold-to-ramp exposure
+    if (keys[SDL_SCANCODE_8] || keys[SDL_SCANCODE_LEFTBRACKET]) {
+        adjustExposure(-0.35f * dt);
+    }
+    if (keys[SDL_SCANCODE_9] || keys[SDL_SCANCODE_RIGHTBRACKET]) {
+        adjustExposure(0.35f * dt);
+    }
 
     if (state_ == GameState::Attract || state_ == GameState::Intro ||
         state_ == GameState::GameOver || state_ == GameState::Pause) {
@@ -568,7 +576,11 @@ void Game::updateShake(float dt) {
 }
 
 void Game::update(float dt) {
-    animTime_ += dt;
+    if (state_ == GameState::Play && replayTimer_ > 0.0f && slowmoReplay_) {
+        animTime_ += dt * 0.4f;
+    } else {
+        animTime_ += dt;
+    }
     updateShake(dt);
 
     if (ballFlash_ > 0.0f) {
@@ -733,7 +745,7 @@ void Game::update(float dt) {
             playerWon_ = false;
             audio_.playClank(0.5f, 0.6f);
         } else {
-            replayTimer_ = 1.35f;
+            replayTimer_ = replayDuration_;
             replayTowardPlayer_ = true; // ball left near player; serve toward far? 
             // nextServeTowardPlayer_: false means ball goes toward AI (away from player)
             nextServeTowardPlayer_ = false;
@@ -751,7 +763,7 @@ void Game::update(float dt) {
             playerWon_ = true;
             audio_.playClank(1.4f, 0.7f);
         } else {
-            replayTimer_ = 1.35f;
+            replayTimer_ = replayDuration_;
             replayTowardPlayer_ = false; // exited near AI end
             nextServeTowardPlayer_ = true;
         }
@@ -1160,17 +1172,20 @@ void Game::buildScene() {
     }
     scene_.spheres.push_back(ball);
 
-    // Wall-mounted decos
+    // Wall-mounted decos (theme-tinted)
     const float wallL = -FIELD_W * 0.5f;
     const float wallR = FIELD_W * 0.5f;
     const float wallB = FIELD_L + 0.5f;
+    Vec3 themeA, themeB;
+    paddleColors(themeA, themeB);
+    Vec3 themeMix = (themeA + themeB) * 0.5f;
     struct DecoSpec {
         Vec3 center;
         float radius;
         Vec3 color;
         float reflectivity;
     };
-    const DecoSpec decos[] = {
+    DecoSpec decos[] = {
         {Vec3(wallL + 0.28f, 1.6f, 3.5f), 0.35f, Vec3(0.9f, 0.55f, 0.2f), 0.65f},
         {Vec3(wallL + 0.22f, 2.2f, 8.0f), 0.28f, Vec3(0.85f, 0.3f, 0.45f), 0.7f},
         {Vec3(wallL + 0.32f, 1.1f, 13.0f), 0.4f, Vec3(0.4f, 0.75f, 0.95f), 0.6f},
@@ -1179,7 +1194,9 @@ void Game::buildScene() {
         {Vec3(wallR - 0.35f, 1.3f, 14.2f), 0.38f, Vec3(0.7f, 0.4f, 0.85f), 0.7f},
         {Vec3(0.0f, 2.15f, wallB - 0.3f), 0.4f, Vec3(0.95f, 0.55f, 0.4f), 0.65f},
     };
-    for (const auto& d : decos) {
+    for (auto& d : decos) {
+        // Blend base deco color toward theme palette
+        d.color = d.color * 0.35f + themeMix * 0.4f + themeA * 0.25f;
         Sphere s;
         s.center = d.center;
         s.radius = d.radius;
@@ -1286,14 +1303,16 @@ void Game::updateCamera(float dt) {
     }
 
     if (state_ == GameState::Play && replayTimer_ > 0.0f) {
-        // Brief orbit toward the end that was scored on
-        float t = 1.0f - (replayTimer_ / 1.35f);
+        float dur = std::max(0.2f, replayDuration_);
+        float t = 1.0f - (replayTimer_ / dur);
         t = t * t * (3.0f - 2.0f * t);
         float goalZ = replayTowardPlayer_ ? 0.5f : FIELD_L - 0.5f;
-        float ang = animTime_ * 0.8f;
-        Vec3 pos(std::sin(ang) * 4.5f, 2.8f + 0.4f * t, goalZ + (replayTowardPlayer_ ? 3.5f : -3.5f));
+        float spin = slowmoReplay_ ? 0.35f : 0.85f;
+        float ang = animTime_ * spin;
+        float rad = slowmoReplay_ ? 5.2f : 4.5f;
+        Vec3 pos(std::sin(ang) * rad, 2.6f + 0.5f * t, goalZ + (replayTowardPlayer_ ? 3.8f : -3.8f));
         Vec3 look(ballX_ * 0.3f, BALL_R + 0.2f, ballZ_);
-        camera_.set(pos, look, up, 55.0f);
+        camera_.set(pos, look, up, slowmoReplay_ ? 48.0f : 55.0f);
         return;
     }
 
@@ -1404,6 +1423,18 @@ void Game::run() {
                     ensureCpuFramebuffer(std::max(1, w), std::max(1, h));
                 }
             }
+            if (e.type == SDL_KEYUP) {
+                switch (e.key.keysym.sym) {
+                case SDLK_8:
+                case SDLK_9:
+                case SDLK_LEFTBRACKET:
+                case SDLK_RIGHTBRACKET:
+                    persistConfig();
+                    break;
+                default:
+                    break;
+                }
+            }
             if (e.type == SDL_KEYDOWN) {
                 const SDL_Keymod mods = SDL_GetModState();
                 switch (e.key.keysym.sym) {
@@ -1486,18 +1517,13 @@ void Game::run() {
                 case SDLK_7:
                     cycleShadowSamples();
                     break;
-                case SDLK_8:
-                case SDLK_LEFTBRACKET:
-                    adjustExposure(-0.08f);
-                    audio_.playSoftThud(0.7f, 0.15f);
-                    break;
-                case SDLK_9:
-                case SDLK_RIGHTBRACKET:
-                    adjustExposure(0.08f);
-                    audio_.playSoftThud(1.1f, 0.15f);
-                    break;
                 case SDLK_0:
                     cycleTheme();
+                    break;
+                case SDLK_F9:
+                    slowmoReplay_ = !slowmoReplay_;
+                    audio_.playSoftThud(slowmoReplay_ ? 0.75f : 1.1f, 0.2f);
+                    persistConfig();
                     break;
                 case SDLK_6:
                     vsync_ = !vsync_;

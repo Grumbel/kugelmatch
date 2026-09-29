@@ -56,6 +56,8 @@ private:
     float exposure_ = 1.0f;
     Theme theme_ = Theme::Classic;
     float replayTimer_ = 0.0f;
+    float replayDuration_ = 1.8f;
+    bool slowmoReplay_ = true;
     bool replayTowardPlayer_ = false; // ball exited near player end
 
     SDL_Window* window_ = nullptr;

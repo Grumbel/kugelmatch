@@ -19,6 +19,7 @@ struct AppConfig {
     int shadowSamples = 4; // 1..8
     float exposure = 1.0f;
     int theme = 0; // 0 classic 1 neon 2 ice 3 ember
+    bool slowmoReplay = true;
 };
 
 // Load from path (or default locations). Returns true if a file was read.
