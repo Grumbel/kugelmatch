@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — theme decos, hold exposure, slow-mo replay
+**Tip:** `d2ee777` — theme decos, hold exposure, slow-mo
 
 ## Done
 
