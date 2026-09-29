@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
+-->
+<component type="desktop-application">
+  <id>org.kugelmatch.KugelMatch</id>
+  <name>KugelMatch</name>
+  <summary>Raytraced Pong</summary>
+  <metadata_license>FSFAP</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer_name>Ingo Ruhnke</developer_name>
+  <description>
+    <p>
+      KugelMatch is a Pong-style game rendered with full analytic ray tracing.
+      Choose a multi-threaded CPU raytracer or a GPU fragment-shader backend;
+      both share the same 1990s checkerboard and mirror-ball look.
+    </p>
+  </description>
+  <launchable type="desktop-id">kugelmatch.desktop</launchable>
+  <categories>
+    <category>Game</category>
+    <category>ArcadeGame</category>
+  </categories>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.2.12" date="2026-09-29" />
+  </releases>
+</component>

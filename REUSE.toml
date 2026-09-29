@@ -7,3 +7,8 @@ version = 1
 path = ["flake.lock", "src/embedded_frag.inc"]
 SPDX-FileCopyrightText = "Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>"
 SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["data/kugelmatch.desktop", "data/icons/hicolor/scalable/apps/kugelmatch.svg", "data/metainfo/org.kugelmatch.KugelMatch.metainfo.xml", "man/kugelmatch.6", "scripts/kugelmatch-configure", "scripts/kugelmatch-run"]
+SPDX-FileCopyrightText = "Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>"
+SPDX-License-Identifier = "GPL-3.0-or-later"

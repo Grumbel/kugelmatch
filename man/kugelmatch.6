@@ -1,0 +1,115 @@
+.\" SPDX-License-Identifier: GPL-3.0-or-later
+.\" SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
+.TH KUGELMATCH 6 "2026" "KugelMatch 1.2.12" "Games"
+.SH NAME
+kugelmatch \- raytraced Pong (CPU and GPU fragment-shader backends)
+.SH SYNOPSIS
+.B kugelmatch
+[\fB\-\-cpu\fR|\fB\-\-gpu\fR]
+.br
+.B kugelmatch
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+.B KugelMatch
+is a classic Pong-style game rendered with full analytic ray tracing.
+Two backends share the same scene and rules:
+.TP
+.B \-\-cpu
+Multi-threaded software raytracer (SDL2 texture upload). This is the default.
+.TP
+.B \-\-gpu
+OpenGL fragment-shader raytracer (fullscreen triangle, no scene meshes).
+.PP
+The look is intentionally 1990s: checkerboard floor and walls, a reflective
+mirror ball, and a camera attached to the near paddle looking down the court.
+.SH OPTIONS
+.TP
+.B \-\-cpu
+Select the software raytracer backend.
+.TP
+.B \-\-gpu
+Select the GPU fragment-shader backend.
+.TP
+.B \-h, \-\-help
+Print a short usage message and exit.
+.SH CONTROLS
+.SS Match flow
+.TP
+.B Space / Enter
+Start a match, skip intro, skip goal replay, or rematch after game over.
+.TP
+.B P
+Pause / resume.
+.TP
+.B R
+Restart the match.
+.TP
+.B Esc
+Pause, then attract mode, then quit.
+.TP
+.B F8
+Switch CPU ↔ GPU.
+.TP
+.B F9
+Toggle slow-motion goal replay.
+.TP
+.B Q / F10
+Cycle quality preset (Low → Medium → High → Ultra).
+.TP
+.B F11 / Alt+Enter
+Toggle fullscreen.
+.SS Play
+.TP
+.B A / D
+Move the near paddle (also arrow keys in 1P mode).
+.TP
+.B Arrow keys
+Far paddle in 2P mode.
+.SS Options
+.TP
+.B 1
+Difficulty: Easy → Normal → Hard.
+.TP
+.B 2
+Points to win: 7 / 11 / 15 / 21.
+.TP
+.B 3
+Camera: Paddle / High / Sideline.
+.TP
+.B 4
+Toggle 1P / 2P.
+.TP
+.B 5
+Reflection bounces 0–3.
+.TP
+.B 6
+Vsync on/off.
+.TP
+.B 7
+Soft-shadow samples 1 / 2 / 4 / 8.
+.TP
+.B 8 / 9
+Hold to lower / raise exposure ([ and ] also work).
+.TP
+.B 0
+Theme: Classic / Neon / Ice / Ember.
+.TP
+.B M
+Mute.
+.TP
+.B + / −
+Volume.
+.SH FILES
+.TP
+.I ~/.config/kugelmatch/config.cfg
+Persisted settings (XDG config home).
+.TP
+.I $XDG_DATA_DIRS/kugelmatch/shaders/
+Optional GLSL sources when not using the embedded shader.
+.SH SEE ALSO
+Project documentation in the source tree
+.IR README.md .
+.SH AUTHOR
+Ingo Ruhnke <grumbel@gmail.com>
+.SH COPYRIGHT
+Copyright 2026 Ingo Ruhnke. License: GPL-3.0-or-later.

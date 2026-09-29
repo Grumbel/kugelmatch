@@ -5,7 +5,14 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
-## 1.2.11
+## 1.2.12
+
+- Linux packaging: man page, CMake install, .desktop, SVG icon, AppStream metainfo
+- flake apps (`nix run`, `nix run .#kugelmatch-gpu`) and dev-shell helpers
+  `kugelmatch-configure` / `kugelmatch-run` (build in `/tmp/kugelmatch-build`)
+- Portable Release flags by default; `-DKUGELMATCH_NATIVE=ON` for local builds
+
+
 
 - Debounce window resize (~100ms settle) so CPU textures / GPU FBOs are not
   rebuilt on every drag sample (fixes multi-second hitch while resizing)

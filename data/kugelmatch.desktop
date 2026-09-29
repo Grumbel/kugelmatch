@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=KugelMatch
+GenericName=Raytraced Pong
+Comment=Classic Pong rendered with full analytic ray tracing
+Exec=kugelmatch
+Icon=kugelmatch
+Terminal=false
+Categories=Game;ArcadeGame;
+Keywords=pong;raytrace;raytracing;arcade;
+StartupNotify=true

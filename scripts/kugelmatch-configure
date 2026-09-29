@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
+# Configure a local CMake build in /tmp/kugelmatch-build (override with KUGELMATCH_BUILD).
+set -euo pipefail
+
+ROOT="${KUGELMATCH_SRC:-}"
+if [[ -z "${ROOT}" ]]; then
+  if ROOT_GIT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    ROOT="${ROOT_GIT}"
+  else
+    ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  fi
+fi
+BUILD="${KUGELMATCH_BUILD:-/tmp/kugelmatch-build}"
+TYPE="${KUGELMATCH_BUILD_TYPE:-Release}"
+
+echo "Source:  ${ROOT}"
+echo "Build:   ${BUILD}"
+echo "Type:    ${TYPE}"
+
+cmake -S "${ROOT}" -B "${BUILD}" \
+  -DCMAKE_BUILD_TYPE="${TYPE}" \
+  -DKUGELMATCH_NATIVE=ON \
+  "$@"
+
+echo "Configured. Build with: cmake --build ${BUILD} -j\$(nproc)"
+echo "Or run:    kugelmatch-run [--cpu|--gpu] [args...]"

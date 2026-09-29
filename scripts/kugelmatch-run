@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
+# Build into /tmp/kugelmatch-build (if needed) and run kugelmatch from the source tree
+# so shaders/ is visible for the GPU backend.
+set -euo pipefail
+
+ROOT="${KUGELMATCH_SRC:-}"
+if [[ -z "${ROOT}" ]]; then
+  if ROOT_GIT="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+    ROOT="${ROOT_GIT}"
+  else
+    ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  fi
+fi
+BUILD="${KUGELMATCH_BUILD:-/tmp/kugelmatch-build}"
+TYPE="${KUGELMATCH_BUILD_TYPE:-Release}"
+JOBS="$(nproc 2>/dev/null || echo 4)"
+
+if [[ ! -f "${BUILD}/build.ninja" && ! -f "${BUILD}/Makefile" ]]; then
+  echo "Configuring ${BUILD}..."
+  cmake -S "${ROOT}" -B "${BUILD}" \
+    -DCMAKE_BUILD_TYPE="${TYPE}" \
+    -DKUGELMATCH_NATIVE=ON
+fi
+
+echo "Building in ${BUILD}..."
+cmake --build "${BUILD}" -j"${JOBS}"
+
+BIN="${BUILD}/kugelmatch"
+if [[ ! -x "${BIN}" ]]; then
+  echo "error: expected binary at ${BIN}" >&2
+  exit 1
+fi
+
+# Run with cwd = source root so relative shaders/ resolve when present
+cd "${ROOT}"
+echo "Running: ${BIN} $*"
+exec "${BIN}" "$@"

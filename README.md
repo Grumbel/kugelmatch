@@ -3,7 +3,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 -->
 
-# KugelMatch 1.2.11
+# KugelMatch 1.2.12
 
 Classic Pong reimagined as a **90s-style raytracer**.
 
@@ -52,6 +52,34 @@ Shared look: checkerboard floor + walls, reflective **mirror ball**, camera lock
 | + / − | Volume |
 
 Settings persist in `~/.config/kugelmatch/config.cfg`.
+
+
+## Install
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build build -j
+sudo cmake --install build
+```
+
+Installs the binary, man page (`man kugelmatch`), desktop entry, icon, AppStream
+metainfo, and optional GLSL sources under `share/kugelmatch/shaders/`.
+
+### Nix
+
+```bash
+nix build                # package with install layout
+nix run                  # run default (CPU) backend
+nix run .#kugelmatch-gpu # GPU backend
+nix develop              # shell with kugelmatch-configure / kugelmatch-run
+```
+
+Inside the dev shell:
+
+```bash
+kugelmatch-configure     # cmake into /tmp/kugelmatch-build
+kugelmatch-run --gpu     # build there and run (cwd = source root)
+```
 
 ## Build with Nix
 

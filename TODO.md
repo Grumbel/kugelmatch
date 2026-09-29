@@ -9,26 +9,22 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `6a992f2` — v1.2.11 resize debounce
+**Tip:** (pending) — v1.2.12 Linux packaging
 
 ## Done
 
-- [x] v1.2.1–1.2.10
-- [x] Debounced window resize (avoid FB/FBO thrash while dragging)
-- [x] Version **1.2.11**
+- [x] v1.2.1–1.2.11
+- [x] Man page, CMake install, desktop, icon, metainfo
+- [x] flake apps + devShell configure/run scripts
+- [x] Version **1.2.12**
 
 ## Open / follow-ups
 
 - [ ] Tag releases on upstream
-- [ ] Camera orbit / scoreboard face / 7-seg / mirrored text (reported, not all landed)
+- [ ] Camera orbit / scoreboard / glyphs / mirrored text (earlier reports)
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-034.1-controls-angle-a7bcc21.bundle`
-This: `kugelmatch-035.1-resize-debounce-a7bcc21.bundle`
-
-## Notes
-
-- `noteWindowSize` / `flushPendingResize` / `applyWindowSize`; settle = 100ms
-- During cooldown, keep rendering at `appliedWinW_/H_`
+Previous: `kugelmatch-035.1-resize-debounce-a7bcc21.bundle`
+This: `kugelmatch-036.1-linux-packaging-a7bcc21.bundle`
