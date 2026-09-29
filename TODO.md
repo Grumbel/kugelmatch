@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — shared glyphs module, Nix CI job
+**Tip:** `2a98937` — glyphs module, Nix CI
 
 ## Done
 
