@@ -7,16 +7,23 @@
 #include "raytracer.hpp"
 #include "scene.hpp"
 #include <SDL.h>
-#include <vector>
 
 enum class RenderBackend { Cpu, Gpu };
 
 enum class GameState {
-    Attract, // orbit camera, wait for start
-    Intro,   // fly-in to paddle cam
+    Attract,
+    Intro,
     Play,
     Pause,
     GameOver
+};
+
+enum class Difficulty { Easy, Normal, Hard };
+
+enum class CameraMode {
+    Paddle,   // classic: on player paddle
+    High,     // higher follow cam
+    Sideline  // side of field looking in
 };
 
 class Game {
@@ -30,6 +37,10 @@ public:
 
 private:
     RenderBackend backend_;
+    GameState state_ = GameState::Attract;
+    Difficulty difficulty_ = Difficulty::Normal;
+    CameraMode cameraMode_ = CameraMode::Paddle;
+    bool twoPlayer_ = false;
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* sdlRenderer_ = nullptr;
@@ -44,10 +55,8 @@ private:
     Scene scene_;
     Camera camera_;
 
-    GameState state_ = GameState::Attract;
-
     float playerX_ = 0.0f;
-    float aiX_ = 0.0f;
+    float player2X_ = 0.0f; // AI or second human (far paddle)
     float ballX_ = 0.0f;
     float ballZ_ = 0.0f;
     float ballVX_ = 0.0f;
@@ -68,10 +77,12 @@ private:
     float ballFlash_ = 0.0f;
     float fpsSmooth_ = 0.0f;
 
-    // Attract / intro camera
     float attractTime_ = 0.0f;
-    float introT_ = 0.0f; // 0..1
+    float introT_ = 0.0f;
     static constexpr float INTRO_DURATION = 2.2f;
+
+    // Attract demo: light AI-vs-AI motion
+    bool demoActive_ = true;
 
     static constexpr float FIELD_W = 8.0f;
     static constexpr float FIELD_L = 16.0f;
@@ -87,13 +98,21 @@ private:
     bool switchBackend(RenderBackend next);
     bool ensureCpuFramebuffer(int w, int h);
 
+    float aiSpeedForDifficulty() const;
+    void cycleDifficulty();
+    void cyclePointsToWin();
+    void cycleCameraMode();
+    void toggleTwoPlayer();
+
     void resetBall(bool towardPlayer);
     void queueServe(bool towardPlayer);
     void startMatch();
+    void updateDemo(float dt);
     void update(float dt);
     void handleInput(float dt);
     void buildScene();
     void addScoreboard(Scene& scene) const;
+    void addOptionsGeometry(Scene& scene) const;
     void addDigitBoxes(Scene& scene, float ox, float oy, float oz, int digit,
                        const Vec3& color) const;
     void presentCpu();

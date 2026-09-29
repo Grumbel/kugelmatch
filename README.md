@@ -29,6 +29,10 @@ Shared look: checkerboard floor + walls, reflective **mirror ball**, camera lock
 | + / − | Volume |
 | F11 or Alt+Enter | Fullscreen |
 | ESC | Pause → attract → quit |
+| 1 | Cycle difficulty (Easy/Normal/Hard) |
+| 2 | Cycle points to win (7/11/15/21) |
+| 3 | Cycle camera (Paddle/High/Sideline) |
+| 4 | Toggle 1P / 2P |
 
 ## Build with Nix
 

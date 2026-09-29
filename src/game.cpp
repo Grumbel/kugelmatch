@@ -183,7 +183,7 @@ bool Game::init() {
     }
 
     playerX_ = 0.0f;
-    aiX_ = 0.0f;
+    player2X_ = 0.0f;
     ballX_ = 0.0f;
     ballZ_ = FIELD_L * 0.5f;
     ballVX_ = ballVZ_ = 0.0f;
@@ -228,11 +228,129 @@ void Game::queueServe(bool towardPlayer) {
     ballFlash_ = 0.0f;
 }
 
+
+float Game::aiSpeedForDifficulty() const {
+    switch (difficulty_) {
+    case Difficulty::Easy:
+        return 4.5f;
+    case Difficulty::Hard:
+        return 11.0f;
+    default:
+        return 7.5f;
+    }
+}
+
+void Game::cycleDifficulty() {
+    switch (difficulty_) {
+    case Difficulty::Easy:
+        difficulty_ = Difficulty::Normal;
+        break;
+    case Difficulty::Normal:
+        difficulty_ = Difficulty::Hard;
+        break;
+    default:
+        difficulty_ = Difficulty::Easy;
+        break;
+    }
+    audio_.playSoftThud(1.2f, 0.2f);
+}
+
+void Game::cyclePointsToWin() {
+    static const int opts[] = {7, 11, 15, 21};
+    int idx = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (opts[i] == pointsToWin_) {
+            idx = i;
+            break;
+        }
+    }
+    pointsToWin_ = opts[(idx + 1) % 4];
+    audio_.playSoftThud(0.9f, 0.2f);
+}
+
+void Game::cycleCameraMode() {
+    switch (cameraMode_) {
+    case CameraMode::Paddle:
+        cameraMode_ = CameraMode::High;
+        break;
+    case CameraMode::High:
+        cameraMode_ = CameraMode::Sideline;
+        break;
+    default:
+        cameraMode_ = CameraMode::Paddle;
+        break;
+    }
+    audio_.playSoftThud(1.0f, 0.2f);
+}
+
+void Game::toggleTwoPlayer() {
+    twoPlayer_ = !twoPlayer_;
+    audio_.playClank(twoPlayer_ ? 1.1f : 0.8f, 0.35f);
+}
+
+void Game::updateDemo(float dt) {
+    // Slow AI-vs-AI rally for attract mode
+    float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
+    float spd = 5.0f;
+
+    auto track = [&](float& px, float target) {
+        if (px < target - 0.12f) {
+            px += spd * dt;
+        } else if (px > target + 0.12f) {
+            px -= spd * dt;
+        }
+        px = std::max(-half, std::min(half, px));
+    };
+
+    if (std::abs(ballVX_) < 0.01f && std::abs(ballVZ_) < 0.01f) {
+        resetBall(false);
+        ballVZ_ *= 0.7f;
+        ballVX_ *= 0.7f;
+    }
+
+    track(playerX_, ballX_ + (ballVZ_ < 0.0f ? ballVX_ * 0.3f : 0.0f));
+    track(player2X_, ballX_ + (ballVZ_ > 0.0f ? ballVX_ * 0.3f : 0.0f));
+
+    ballX_ += ballVX_ * dt;
+    ballZ_ += ballVZ_ * dt;
+
+    float wall = FIELD_W * 0.5f - BALL_R;
+    if (ballX_ < -wall) {
+        ballX_ = -wall;
+        ballVX_ = -ballVX_;
+    } else if (ballX_ > wall) {
+        ballX_ = wall;
+        ballVX_ = -ballVX_;
+    }
+
+    float pz = 0.4f;
+    if (ballZ_ - BALL_R < pz + PADDLE_D * 0.5f && ballVZ_ < 0.0f &&
+        ballX_ + BALL_R > playerX_ - PADDLE_W * 0.5f &&
+        ballX_ - BALL_R < playerX_ + PADDLE_W * 0.5f) {
+        ballZ_ = pz + PADDLE_D * 0.5f + BALL_R;
+        ballVZ_ = std::abs(ballVZ_);
+        ballVX_ += (ballX_ - playerX_) * 1.5f;
+    }
+    float az = FIELD_L - 0.4f;
+    if (ballZ_ + BALL_R > az - PADDLE_D * 0.5f && ballVZ_ > 0.0f &&
+        ballX_ + BALL_R > player2X_ - PADDLE_W * 0.5f &&
+        ballX_ - BALL_R < player2X_ + PADDLE_W * 0.5f) {
+        ballZ_ = az - PADDLE_D * 0.5f - BALL_R;
+        ballVZ_ = -std::abs(ballVZ_);
+        ballVX_ += (ballX_ - player2X_) * 1.5f;
+    }
+    // Wrap if escapes
+    if (ballZ_ < -2.0f || ballZ_ > FIELD_L + 2.0f) {
+        resetBall(ballZ_ > FIELD_L * 0.5f);
+        ballVZ_ *= 0.65f;
+    }
+}
+
 void Game::startMatch() {
     playerScore_ = 0;
     aiScore_ = 0;
     playerX_ = 0.0f;
-    aiX_ = 0.0f;
+    player2X_ = 0.0f;
     state_ = GameState::Intro;
     introT_ = 0.0f;
     attractTime_ = 0.0f;
@@ -242,40 +360,47 @@ void Game::startMatch() {
 void Game::handleInput(float dt) {
     const Uint8* keys = SDL_GetKeyboardState(nullptr);
 
-    if (state_ == GameState::Attract) {
-        // movement keys ignored; wait for start
-        return;
-    }
-
-    if (state_ == GameState::Intro) {
-        return;
-    }
-
-    if (state_ == GameState::GameOver) {
-        return;
-    }
-
-    if (state_ == GameState::Pause) {
-        return;
-    }
-
-    // Play
-    float speed = 9.0f;
-    if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) {
-        playerX_ += speed * dt;
-    }
-    if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D]) {
-        playerX_ -= speed * dt;
-    }
-    float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
-    playerX_ = std::max(-half, std::min(half, playerX_));
-
+    // Volume always available
     if (keys[SDL_SCANCODE_EQUALS] || keys[SDL_SCANCODE_KP_PLUS]) {
         audio_.setMasterVolume(audio_.masterVolume() + 0.5f * dt);
     }
     if (keys[SDL_SCANCODE_MINUS] || keys[SDL_SCANCODE_KP_MINUS]) {
         audio_.setMasterVolume(audio_.masterVolume() - 0.5f * dt);
     }
+
+    if (state_ == GameState::Attract || state_ == GameState::Intro ||
+        state_ == GameState::GameOver || state_ == GameState::Pause) {
+        return;
+    }
+
+    // Play: P1 uses A/D (and arrows if single-player)
+    float speed = 9.0f;
+    float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
+
+    if (keys[SDL_SCANCODE_A]) {
+        playerX_ += speed * dt;
+    }
+    if (keys[SDL_SCANCODE_D]) {
+        playerX_ -= speed * dt;
+    }
+    if (!twoPlayer_) {
+        if (keys[SDL_SCANCODE_LEFT]) {
+            playerX_ += speed * dt;
+        }
+        if (keys[SDL_SCANCODE_RIGHT]) {
+            playerX_ -= speed * dt;
+        }
+    } else {
+        // P2 (far paddle): arrow keys
+        if (keys[SDL_SCANCODE_LEFT]) {
+            player2X_ += speed * dt;
+        }
+        if (keys[SDL_SCANCODE_RIGHT]) {
+            player2X_ -= speed * dt;
+        }
+        player2X_ = std::max(-half, std::min(half, player2X_));
+    }
+    playerX_ = std::max(-half, std::min(half, playerX_));
 }
 
 void Game::triggerShake(float amount) {
@@ -310,7 +435,9 @@ void Game::update(float dt) {
 
     if (state_ == GameState::Attract) {
         attractTime_ += dt;
-        // Gentle demo: AI-ish ball bounce without scoring pressure
+        if (demoActive_) {
+            updateDemo(dt);
+        }
         return;
     }
 
@@ -337,12 +464,14 @@ void Game::update(float dt) {
             audio_.playSoftThud(1.1f, 0.25f);
         }
         float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
-        if (aiX_ < -0.1f) {
-            aiX_ += 4.0f * dt;
-        } else if (aiX_ > 0.1f) {
-            aiX_ -= 4.0f * dt;
+        if (!twoPlayer_) {
+            if (player2X_ < -0.1f) {
+                player2X_ += 4.0f * dt;
+            } else if (player2X_ > 0.1f) {
+                player2X_ -= 4.0f * dt;
+            }
+            player2X_ = std::max(-half, std::min(half, player2X_));
         }
-        aiX_ = std::max(-half, std::min(half, aiX_));
         return;
     }
 
@@ -351,14 +480,23 @@ void Game::update(float dt) {
         float t = (FIELD_L - ballZ_) / std::max(0.1f, ballVZ_);
         target = ballX_ + ballVX_ * t * 0.7f;
     }
-    float aiSpeed = 7.5f;
-    if (aiX_ < target - 0.15f) {
-        aiX_ += aiSpeed * dt;
-    } else if (aiX_ > target + 0.15f) {
-        aiX_ -= aiSpeed * dt;
-    }
     float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
-    aiX_ = std::max(-half, std::min(half, aiX_));
+    if (!twoPlayer_) {
+        float aiSpeed = aiSpeedForDifficulty();
+        // Hard: stronger prediction weight
+        float pred = (difficulty_ == Difficulty::Hard) ? 0.95f
+                    : (difficulty_ == Difficulty::Easy) ? 0.35f : 0.7f;
+        if (ballVZ_ > 0.0f) {
+            float tt = (FIELD_L - ballZ_) / std::max(0.1f, ballVZ_);
+            target = ballX_ + ballVX_ * tt * pred;
+        }
+        if (player2X_ < target - 0.15f) {
+            player2X_ += aiSpeed * dt;
+        } else if (player2X_ > target + 0.15f) {
+            player2X_ -= aiSpeed * dt;
+        }
+        player2X_ = std::max(-half, std::min(half, player2X_));
+    }
 
     ballX_ += ballVX_ * dt;
     ballZ_ += ballVZ_ * dt;
@@ -404,11 +542,11 @@ void Game::update(float dt) {
     float az = FIELD_L - 0.4f;
     if (ballZ_ + BALL_R > az - PADDLE_D * 0.5f && ballZ_ - BALL_R < az + PADDLE_D * 0.5f &&
         ballVZ_ > 0.0f) {
-        if (ballX_ + BALL_R > aiX_ - PADDLE_W * 0.5f &&
-            ballX_ - BALL_R < aiX_ + PADDLE_W * 0.5f) {
+        if (ballX_ + BALL_R > player2X_ - PADDLE_W * 0.5f &&
+            ballX_ - BALL_R < player2X_ + PADDLE_W * 0.5f) {
             ballZ_ = az - PADDLE_D * 0.5f - BALL_R;
             ballVZ_ = -ballVZ_ * 1.05f;
-            float offset = (ballX_ - aiX_) / (PADDLE_W * 0.5f);
+            float offset = (ballX_ - player2X_) / (PADDLE_W * 0.5f);
             ballVX_ += offset * 2.5f;
             float sp = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
             if (sp > 14.0f) {
@@ -525,6 +663,67 @@ void Game::addScoreboard(Scene& scene) const {
     addDigitBoxes(scene, 1.05f, digitY, digitZ, aOnes, colAi);
 }
 
+
+void Game::addOptionsGeometry(Scene& scene) const {
+    // Three difficulty pillars along the near-left wall (visual options readout)
+    const float baseZ = 2.2f;
+    const float baseX = -FIELD_W * 0.5f + 0.55f;
+    const float heights[3] = {0.7f, 1.2f, 1.85f};
+    const Vec3 colors[3] = {
+        Vec3(0.4f, 0.85f, 0.5f),
+        Vec3(0.9f, 0.85f, 0.35f),
+        Vec3(0.95f, 0.35f, 0.3f),
+    };
+    int sel = static_cast<int>(difficulty_);
+    for (int i = 0; i < 3; ++i) {
+        float h = heights[i];
+        bool on = (i == sel);
+        Vec3 c = colors[i] * (on ? 1.15f : 0.35f);
+        float ref = on ? 0.55f : 0.15f;
+        pushBox(scene,
+                Vec3(baseX - 0.18f, 0.02f, baseZ + i * 0.55f - 0.15f),
+                Vec3(baseX + 0.18f, h, baseZ + i * 0.55f + 0.15f),
+                c, ref);
+        if (on) {
+            // Selection orb on top
+            Sphere s;
+            s.center = Vec3(baseX, h + 0.22f, baseZ + i * 0.55f);
+            s.radius = 0.18f;
+            s.color = colors[i];
+            s.reflectivity = 0.8f;
+            scene.spheres.push_back(s);
+        }
+    }
+
+    // Camera-mode markers near near-right wall: three small pads
+    const float cx = FIELD_W * 0.5f - 0.55f;
+    const float cz = 2.0f;
+    int cam = static_cast<int>(cameraMode_);
+    for (int i = 0; i < 3; ++i) {
+        bool on = (i == cam);
+        Vec3 c = on ? Vec3(0.6f, 0.85f, 1.0f) : Vec3(0.15f, 0.18f, 0.22f);
+        pushBox(scene,
+                Vec3(cx - 0.2f, 0.02f, cz + i * 0.5f - 0.12f),
+                Vec3(cx + 0.2f, on ? 0.35f : 0.12f, cz + i * 0.5f + 0.12f),
+                c, on ? 0.5f : 0.1f);
+    }
+
+    // 1P / 2P marker spheres floating mid-near
+    {
+        Sphere s;
+        s.center = Vec3(0.0f, 1.6f, 1.2f);
+        s.radius = twoPlayer_ ? 0.28f : 0.2f;
+        s.color = twoPlayer_ ? Vec3(1.0f, 0.7f, 0.3f) : Vec3(0.5f, 0.55f, 0.7f);
+        s.reflectivity = 0.75f;
+        scene.spheres.push_back(s);
+    }
+
+    // Points-to-win as a small digit on the floor front (always visible)
+    addDigitBoxes(scene, 0.0f, 0.55f, 1.0f, pointsToWin_ >= 10 ? pointsToWin_ / 10 : 0,
+                  Vec3(0.9f, 0.9f, 0.5f));
+    addDigitBoxes(scene, 0.55f, 0.55f, 1.0f, pointsToWin_ % 10, Vec3(0.9f, 0.9f, 0.5f));
+}
+
 void Game::buildScene() {
     scene_.clear();
 
@@ -578,13 +777,14 @@ void Game::buildScene() {
     scene_.boxes.push_back(playerPad);
 
     Box aiPad;
-    aiPad.minb = Vec3(aiX_ - PADDLE_W * 0.5f, 0.05f, FIELD_L - 0.25f - PADDLE_D);
-    aiPad.maxb = Vec3(aiX_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, FIELD_L - 0.25f);
+    aiPad.minb = Vec3(player2X_ - PADDLE_W * 0.5f, 0.05f, FIELD_L - 0.25f - PADDLE_D);
+    aiPad.maxb = Vec3(player2X_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, FIELD_L - 0.25f);
     aiPad.color = Vec3(0.9f, 0.4f, 0.35f);
     aiPad.reflectivity = 0.3f;
     scene_.boxes.push_back(aiPad);
 
     addScoreboard(scene_);
+    addOptionsGeometry(scene_);
 
     Sphere ball;
     ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
@@ -671,14 +871,25 @@ void Game::updateCamera(float dt) {
         return;
     }
 
-    // Play / Pause: paddle cam + shake
+    // Play / Pause: selected camera mode + shake
     float sx = shakeOffsetX_ * shake_;
     float sy = shakeOffsetY_ * shake_;
-    if (shake_ > 0.001f) {
+    if (shake_ > 0.001f && cameraMode_ == CameraMode::Paddle) {
         sx += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.35f;
         sy += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.25f;
     }
-    paddleCam(sx, sy);
+
+    if (cameraMode_ == CameraMode::High) {
+        Vec3 camPos(playerX_ * 0.4f + sx * 0.3f, 3.2f + sy * 0.2f, -2.5f);
+        Vec3 lookAt(0.0f, 0.4f, FIELD_L * 0.45f);
+        camera_.set(camPos, lookAt, up, 58.0f);
+    } else if (cameraMode_ == CameraMode::Sideline) {
+        Vec3 camPos(FIELD_W * 0.5f + 3.5f, 2.4f, FIELD_L * 0.5f);
+        Vec3 lookAt(0.0f, 0.5f, FIELD_L * 0.5f);
+        camera_.set(camPos, lookAt, up, 50.0f);
+    } else {
+        paddleCam(sx, sy);
+    }
 }
 
 void Game::presentCpu() {
@@ -709,10 +920,24 @@ void Game::updateHud() {
     default:
         break;
     }
-    char buf[256];
+    const char* diff = "NML";
+    switch (difficulty_) {
+    case Difficulty::Easy: diff = "EASY"; break;
+    case Difficulty::Hard: diff = "HARD"; break;
+    default: break;
+    }
+    const char* cam = "PAD";
+    switch (cameraMode_) {
+    case CameraMode::High: cam = "HIGH"; break;
+    case CameraMode::Sideline: cam = "SIDE"; break;
+    default: break;
+    }
+    char buf[320];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch [%s]%s  |  %s  |  %.0f FPS  |  F8 backend  |  ESC",
-                  mode, mute, st, fpsSmooth_);
+                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | %.0fFPS | "
+                  "1 diff 2 pts 3 cam 4 1P/2P | F8 | ESC",
+                  mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
+                  fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
 }
 
@@ -814,6 +1039,18 @@ void Game::run() {
                     if (state_ == GameState::Play || state_ == GameState::Pause) {
                         startMatch();
                     }
+                    break;
+                case SDLK_1:
+                    cycleDifficulty();
+                    break;
+                case SDLK_2:
+                    cyclePointsToWin();
+                    break;
+                case SDLK_3:
+                    cycleCameraMode();
+                    break;
+                case SDLK_4:
+                    toggleTwoPlayer();
                     break;
                 default:
                     break;

@@ -13,7 +13,7 @@ public:
     static constexpr int DEFAULT_HEIGHT = 540;
 
     // Must match shaders/raytrace.frag
-    static constexpr int MAX_SPHERES = 8;
+    static constexpr int MAX_SPHERES = 16;
     static constexpr int MAX_BOXES = 64;
     static constexpr int MAX_PLANES = 12;
 

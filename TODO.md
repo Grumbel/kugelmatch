@@ -9,32 +9,32 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `214dd62` — scoreboard, states, native res
+**Tip:** (pending) — difficulty, cameras, 2P, options geometry, attract demo
 
 ## Done
 
-- [x] Dual CPU/GPU pure raytracers (no scene meshes)
-- [x] Procedural audio, shake, vignette, REUSE
-- [x] Wall-mounted decorative spheres
-- [x] Ceiling-hung **raytraced scoreboard** (7-segment boxes)
-- [x] Game states: Attract (orbit) → Intro (fly-in) → Play → Pause → GameOver
-- [x] CPU + GPU both render at window resolution (no fixed 640×480)
-- [x] Runtime CPU ↔ GPU switch (F8)
+- [x] Raytraced scoreboard, states, native res, F8 backend switch
+- [x] Attract demo AI-vs-AI rally under orbit camera
+- [x] Difficulty Easy/Normal/Hard (key **1**) — AI speed + prediction
+- [x] Points to win 7/11/15/21 (key **2**) — floor digits + match end
+- [x] Camera modes Paddle/High/Sideline (key **3**)
+- [x] Local 2-player (key **4**): P1 A/D, P2 arrows
+- [x] Raytraced options readout: difficulty pillars, cam pads, 1P/2P orb
 
 ## Open / follow-ups
 
-- [ ] Options “menu” as raytraced geometry (difficulty, points-to-win)
-- [ ] Alternate camera modes selectable in attract
-- [ ] Local 2-player
-- [ ] Optional quality toggles (reflections) for slow GPUs
+- [ ] Config file persistence
+- [ ] Reflections quality toggle
+- [ ] Block-letter title in attract (box glyphs)
+- [ ] Winner celebration camera beat
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Next: `kugelmatch-012.1-scoreboard-states-a7bcc21.bundle`
+Previous: `kugelmatch-012.1-scoreboard-states-a7bcc21.bundle`
+Next: `kugelmatch-013.1-options-2p-cameras-a7bcc21.bundle`
 
 ## Notes
 
-- Score digits are boxes; GPU `MAX_BOXES=64` must stay in sync with the shader.
-- Attract/intro are pure camera paths — no bitmap overlays.
-- Prefer raytraced/procedural UI over fonts or sample files.
+- GPU limits: MAX_SPHERES=16, MAX_BOXES=64 — keep shader + header + embedded in sync.
+- Options are scene geometry, not overlays.

@@ -5,7 +5,7 @@
 in vec2 v_uv;
 out vec4 fragColor;
 
-#define MAX_SPHERES 8
+#define MAX_SPHERES 16
 #define MAX_BOXES   64
 #define MAX_PLANES  12
 #define MAX_DEPTH   3
