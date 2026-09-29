@@ -110,6 +110,10 @@ bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {
             cfg.theme = std::atoi(val.c_str());
         } else if (key == "slowmo_replay" || key == "slowmo") {
             cfg.slowmoReplay = (val == "1" || val == "true");
+        } else if (key == "cpu_max_width") {
+            cfg.cpuMaxWidth = std::atoi(val.c_str());
+        } else if (key == "cpu_max_height") {
+            cfg.cpuMaxHeight = std::atoi(val.c_str());
         }
     }
     if (cfg.maxBounces < 0) {
@@ -156,5 +160,7 @@ bool saveConfig(const AppConfig& cfg, std::string* savedTo) {
     out << "exposure=" << cfg.exposure << "\n";
     out << "theme=" << cfg.theme << "\n";
     out << "slowmo_replay=" << (cfg.slowmoReplay ? 1 : 0) << "\n";
+    out << "cpu_max_width=" << cfg.cpuMaxWidth << "\n";
+    out << "cpu_max_height=" << cfg.cpuMaxHeight << "\n";
     return true;
 }

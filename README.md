@@ -72,6 +72,22 @@ nix build
 
 ## Build without Nix
 
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /tmp/tmp.h7iFBBZsRV/kugelmatch/build
+cmake --build build -j2
+gmake[1]: Entering directory '/tmp/tmp.h7iFBBZsRV/kugelmatch/build'
+gmake[2]: Entering directory '/tmp/tmp.h7iFBBZsRV/kugelmatch/build'
+gmake[3]: Entering directory '/tmp/tmp.h7iFBBZsRV/kugelmatch/build'
+gmake[3]: Leaving directory '/tmp/tmp.h7iFBBZsRV/kugelmatch/build'
+[100%] Built target kugelmatch
+gmake[2]: Leaving directory '/tmp/tmp.h7iFBBZsRV/kugelmatch/build'
+gmake[1]: Leaving directory '/tmp/tmp.h7iFBBZsRV/kugelmatch/build'
+
+Needs: CMake ≥ 3.16, SDL2, OpenGL, C++17, pthread.
+
+
 Needs: CMake ≥ 3.16, SDL2, OpenGL, C++17, pthread.
 
 ```bash

@@ -20,6 +20,8 @@ struct AppConfig {
     float exposure = 1.0f;
     int theme = 0; // 0 classic 1 neon 2 ice 3 ember
     bool slowmoReplay = true;
+    int cpuMaxWidth = 1280;  // clamp CPU RT resolution (0 = unlimited)
+    int cpuMaxHeight = 720;
 };
 
 // Load from path (or default locations). Returns true if a file was read.

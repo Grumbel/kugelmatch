@@ -147,6 +147,14 @@ bool Game::switchBackend(RenderBackend next) {
 }
 
 bool Game::ensureCpuFramebuffer(int w, int h) {
+    if (cpuMaxWidth_ > 0 && w > cpuMaxWidth_) {
+        w = cpuMaxWidth_;
+    }
+    if (cpuMaxHeight_ > 0 && h > cpuMaxHeight_) {
+        h = cpuMaxHeight_;
+    }
+    w = std::max(1, w);
+    h = std::max(1, h);
     if (w == fbW_ && h == fbH_ && framebuffer_ && texture_) {
         return true;
     }
@@ -384,6 +392,8 @@ AppConfig Game::currentConfig() const {
     c.exposure = exposure_;
     c.theme = static_cast<int>(theme_);
     c.slowmoReplay = slowmoReplay_;
+    c.cpuMaxWidth = cpuMaxWidth_;
+    c.cpuMaxHeight = cpuMaxHeight_;
     if (window_) {
         Uint32 flags = SDL_GetWindowFlags(window_);
         c.fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
@@ -410,6 +420,8 @@ void Game::applyConfig(const AppConfig& cfg) {
     if (exposure_ > 3.0f) exposure_ = 3.0f;
     theme_ = static_cast<Theme>(std::max(0, std::min(3, cfg.theme)));
     slowmoReplay_ = cfg.slowmoReplay;
+    cpuMaxWidth_ = cfg.cpuMaxWidth;
+    cpuMaxHeight_ = cfg.cpuMaxHeight;
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
 }
@@ -458,6 +470,14 @@ void Game::updateDemo(float dt) {
     ballX_ += ballVX_ * dt;
     ballZ_ += ballVZ_ * dt;
 
+    // Soft ghost trail (raytraced spheres)
+    for (int i = TRAIL_LEN - 1; i > 0; --i) {
+        trailX_[i] = trailX_[i - 1];
+        trailZ_[i] = trailZ_[i - 1];
+    }
+    trailX_[0] = ballX_;
+    trailZ_[0] = ballZ_;
+
     float wall = FIELD_W * 0.5f - BALL_R;
     if (ballX_ < -wall) {
         ballX_ = -wall;
@@ -499,6 +519,10 @@ void Game::startMatch() {
     introT_ = 0.0f;
     attractTime_ = 0.0f;
     replayTimer_ = 0.0f;
+    for (int i = 0; i < TRAIL_LEN; ++i) {
+        trailX_[i] = 0.0f;
+        trailZ_[i] = FIELD_L * 0.5f;
+    }
     queueServe(false);
 }
 
@@ -673,6 +697,14 @@ void Game::update(float dt) {
 
     ballX_ += ballVX_ * dt;
     ballZ_ += ballVZ_ * dt;
+
+    // Soft ghost trail (raytraced spheres)
+    for (int i = TRAIL_LEN - 1; i > 0; --i) {
+        trailX_[i] = trailX_[i - 1];
+        trailZ_[i] = trailZ_[i - 1];
+    }
+    trailX_[0] = ballX_;
+    trailZ_[0] = ballZ_;
 
     float wall = FIELD_W * 0.5f - BALL_R;
     if (ballX_ < -wall) {
@@ -981,6 +1013,58 @@ void Game::addServeCountdown(Scene& scene) const {
                   n, Vec3(1.0f, 0.95f, 0.4f));
 }
 
+
+void Game::addAttractHint(Scene& scene) const {
+    if (state_ != GameState::Attract) {
+        return;
+    }
+    // Pulsing "SPACE" under the KUGEL title
+    auto glyph = [](char ch) -> const int* {
+        static const int S[7] = {0b01111,0b10000,0b10000,0b01110,0b00001,0b00001,0b11110};
+        static const int P[7] = {0b11110,0b10001,0b10001,0b11110,0b10000,0b10000,0b10000};
+        static const int A[7] = {0b01110,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001};
+        static const int C[7] = {0b01110,0b10001,0b10000,0b10000,0b10000,0b10001,0b01110};
+        static const int E[7] = {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111};
+        switch (ch) {
+        case 'S': return S;
+        case 'P': return P;
+        case 'A': return A;
+        case 'C': return C;
+        case 'E': return E;
+        default: return A;
+        }
+    };
+    float pulse = 0.5f + 0.5f * std::sin(attractTime_ * 3.0f);
+    if (pulse < 0.35f) {
+        return; // blink off phase — saves boxes and draws the eye
+    }
+    float cell = 0.09f;
+    float gap = 0.12f;
+    const char* word = "SPACE";
+    float width = 5 * (5 * cell + gap) - gap;
+    float startX = -width * 0.5f;
+    float baseY = 1.15f;
+    float z = 2.4f;
+    Vec3 col(0.85f + 0.15f * pulse, 0.9f, 0.55f + 0.3f * pulse);
+    for (int ci = 0; word[ci]; ++ci) {
+        const int* rows = glyph(word[ci]);
+        float ox = startX + ci * (5 * cell + gap);
+        for (int r = 0; r < 7; ++r) {
+            int bits = rows[r];
+            for (int c = 0; c < 5; ++c) {
+                if (bits & (1 << (4 - c))) {
+                    float x0 = ox + c * cell;
+                    float y0 = baseY + (6 - r) * cell;
+                    pushBox(scene,
+                            Vec3(x0, y0, z),
+                            Vec3(x0 + cell * 0.85f, y0 + cell * 0.85f, z + 0.07f),
+                            col, 0.4f);
+                }
+            }
+        }
+    }
+}
+
 void Game::addTitleGeometry(Scene& scene) const {
     // Block letters "KUGEL" in 5x7 voxels above the near field (attract ornament)
     // Glyphs packed as 7 rows of 5 bits (MSB = left)
@@ -1162,6 +1246,7 @@ void Game::buildScene() {
     if (state_ == GameState::Attract || state_ == GameState::GameOver) {
         addTitleGeometry(scene_);
     }
+    addAttractHint(scene_);
     addServeCountdown(scene_);
     addMatchPointBanner(scene_);
     addGameOverBanner(scene_);
@@ -1178,6 +1263,18 @@ void Game::buildScene() {
         ball.reflectivity = 0.85f;
     }
     scene_.spheres.push_back(ball);
+
+    if (state_ == GameState::Play && serveTimer_ <= 0.0f && replayTimer_ <= 0.0f) {
+        for (int i = 1; i < TRAIL_LEN; ++i) {
+            Sphere g;
+            float fade = 1.0f - static_cast<float>(i) / static_cast<float>(TRAIL_LEN);
+            g.center = Vec3(trailX_[i], BALL_R * (0.7f + 0.2f * fade), trailZ_[i]);
+            g.radius = BALL_R * (0.55f + 0.25f * fade);
+            g.color = Vec3(0.7f, 0.8f, 1.0f) * (0.35f * fade);
+            g.reflectivity = 0.35f * fade;
+            scene_.spheres.push_back(g);
+        }
+    }
 
     // Wall-mounted decos (theme-tinted)
     const float wallL = -FIELD_W * 0.5f;

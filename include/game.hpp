@@ -58,6 +58,8 @@ private:
     float replayTimer_ = 0.0f;
     float replayDuration_ = 1.8f;
     bool slowmoReplay_ = true;
+    int cpuMaxWidth_ = 1280;
+    int cpuMaxHeight_ = 720;
     bool replayTowardPlayer_ = false; // ball exited near player end
 
     SDL_Window* window_ = nullptr;
@@ -93,6 +95,9 @@ private:
     float serveTimer_ = 0.0f;
     bool nextServeTowardPlayer_ = false;
     float ballFlash_ = 0.0f;
+    static constexpr int TRAIL_LEN = 3;
+    float trailX_[3] = {};
+    float trailZ_[3] = {};
     float fpsSmooth_ = 0.0f;
 
     float attractTime_ = 0.0f;
@@ -138,6 +143,7 @@ private:
     void addServeCountdown(Scene& scene) const;
     void addMatchPointBanner(Scene& scene) const;
     void addGameOverBanner(Scene& scene) const;
+    void addAttractHint(Scene& scene) const;
     void cycleShadowSamples();
     void cycleTheme();
     void adjustExposure(float delta);

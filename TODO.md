@@ -9,27 +9,28 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `49e68bd` — theme floor, skip replay, docs
+**Tip:** (pending) — attract SPACE hint, ball trail, CPU max res, Makefile
 
 ## Done
 
-- [x] Theme-tinted wall decos, hold exposure, slow-mo replay
-- [x] Checker floor + side/back walls shift with theme
-- [x] **Space** skips goal replay → immediate serve
-- [x] README controls rewritten (full key map)
+- [x] Theme floor/walls, skip replay, controls docs
+- [x] Attract-mode blinking voxel **SPACE** hint
+- [x] Raytraced ball ghost trail (3 fading spheres)
+- [x] CPU resolution clamp (`cpu_max_width` / `cpu_max_height`, default 1280×720)
+- [x] Top-level **Makefile** for non-Nix builds
 
 ## Open / follow-ups
 
-- [ ] Attract-mode input legend as voxel glyphs (optional)
-- [ ] CI / packaging beyond Nix flake
+- [ ] Optional CI workflow
+- [ ] Further glyph words in attract (OPTS / PONG)
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-019.1-theme-decos-slowmo-a7bcc21.bundle`
-Next: `kugelmatch-020.1-theme-floor-skip-replay-a7bcc21.bundle`
+Previous: `kugelmatch-020.1-theme-floor-skip-replay-a7bcc21.bundle`
+Next: `kugelmatch-021.1-attract-hint-trail-cpu-cap-a7bcc21.bundle`
 
 ## Notes
 
-- Theme drives paddles, lights, decos, floor, and walls
-- Space during replay ends it and calls queueServe
+- SPACE hint blinks (skipped half the time) to save box budget under MAX_BOXES=128
+- CPU clamp scales up via SDL_RenderCopy when window is larger
