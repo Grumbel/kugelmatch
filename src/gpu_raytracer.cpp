@@ -3,6 +3,7 @@
 #include "gpu_raytracer.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -13,6 +14,48 @@
 
 #ifndef GL_CLAMP_TO_EDGE
 #define GL_CLAMP_TO_EDGE 0x812F
+#endif
+#ifndef GL_FRAMEBUFFER
+#define GL_FRAMEBUFFER 0x8D40
+#endif
+#ifndef GL_READ_FRAMEBUFFER
+#define GL_READ_FRAMEBUFFER 0x8CA8
+#endif
+#ifndef GL_DRAW_FRAMEBUFFER
+#define GL_DRAW_FRAMEBUFFER 0x8CA9
+#endif
+#ifndef GL_COLOR_ATTACHMENT0
+#define GL_COLOR_ATTACHMENT0 0x8CE0
+#endif
+#ifndef GL_FRAMEBUFFER_COMPLETE
+#define GL_FRAMEBUFFER_COMPLETE 0x8CD5
+#endif
+#ifndef GL_RGBA8
+#define GL_RGBA8 0x8058
+#endif
+#ifndef GL_TEXTURE_2D
+#define GL_TEXTURE_2D 0x0DE1
+#endif
+#ifndef GL_LINEAR
+#define GL_LINEAR 0x2601
+#endif
+#ifndef GL_NEAREST
+#define GL_NEAREST 0x2600
+#endif
+#ifndef GL_TEXTURE_MIN_FILTER
+#define GL_TEXTURE_MIN_FILTER 0x2801
+#endif
+#ifndef GL_TEXTURE_MAG_FILTER
+#define GL_TEXTURE_MAG_FILTER 0x2800
+#endif
+#ifndef GL_TEXTURE_WRAP_S
+#define GL_TEXTURE_WRAP_S 0x2802
+#endif
+#ifndef GL_TEXTURE_WRAP_T
+#define GL_TEXTURE_WRAP_T 0x2803
+#endif
+#ifndef GL_COLOR_BUFFER_BIT
+#define GL_COLOR_BUFFER_BIT 0x00004000
 #endif
 
 namespace {
@@ -41,6 +84,17 @@ using PFNGLDRAWARRAYSPROC = void (*)(GLenum, GLint, GLsizei);
 using PFNGLVIEWPORTPROC = void (*)(GLint, GLint, GLsizei, GLsizei);
 using PFNGLCLEARPROC = void (*)(GLbitfield);
 using PFNGLCLEARCOLORPROC = void (*)(GLfloat, GLfloat, GLfloat, GLfloat);
+using PFNGLGENFRAMEBUFFERSPROC = void (*)(GLsizei, GLuint*);
+using PFNGLBINDFRAMEBUFFERPROC = void (*)(GLenum, GLuint);
+using PFNGLDELETEFRAMEBUFFERSPROC = void (*)(GLsizei, const GLuint*);
+using PFNGLFRAMEBUFFERTEXTURE2DPROC = void (*)(GLenum, GLenum, GLenum, GLuint, GLint);
+using PFNGLCHECKFRAMEBUFFERSTATUSPROC = GLenum (*)(GLenum);
+using PFNGLGENTEXTURESPROC = void (*)(GLsizei, GLuint*);
+using PFNGLBINDTEXTUREPROC = void (*)(GLenum, GLuint);
+using PFNGLDELETETEXTURESPROC = void (*)(GLsizei, const GLuint*);
+using PFNGLTEXIMAGE2DPROC = void (*)(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void*);
+using PFNGLTEXPARAMETERIPROC = void (*)(GLenum, GLenum, GLint);
+using PFNGLBLITFRAMEBUFFERPROC = void (*)(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
 
 PFNGLCREATESHADERPROC glCreateShader_ = nullptr;
 PFNGLSHADERSOURCEPROC glShaderSource_ = nullptr;
@@ -66,18 +120,29 @@ PFNGLDRAWARRAYSPROC glDrawArrays_ = nullptr;
 PFNGLVIEWPORTPROC glViewport_ = nullptr;
 PFNGLCLEARPROC glClear_ = nullptr;
 PFNGLCLEARCOLORPROC glClearColor_ = nullptr;
+PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers_ = nullptr;
+PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer_ = nullptr;
+PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers_ = nullptr;
+PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D_ = nullptr;
+PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus_ = nullptr;
+PFNGLGENTEXTURESPROC glGenTextures_ = nullptr;
+PFNGLBINDTEXTUREPROC glBindTexture_ = nullptr;
+PFNGLDELETETEXTURESPROC glDeleteTextures_ = nullptr;
+PFNGLTEXIMAGE2DPROC glTexImage2D_ = nullptr;
+PFNGLTEXPARAMETERIPROC glTexParameteri_ = nullptr;
+PFNGLBLITFRAMEBUFFERPROC glBlitFramebuffer_ = nullptr;
 
 template <typename T>
 bool loadProc(T& fn, const char* name) {
     fn = reinterpret_cast<T>(SDL_GL_GetProcAddress(name));
     if (!fn) {
-        std::fprintf(stderr, "Failed to load GL function: %s\n", name);
+        std::fprintf(stderr, "Missing GL proc: %s\n", name);
         return false;
     }
     return true;
 }
 
-bool loadGL() {
+bool loadAllProcs() {
     bool ok = true;
     ok &= loadProc(glCreateShader_, "glCreateShader");
     ok &= loadProc(glShaderSource_, "glShaderSource");
@@ -103,6 +168,17 @@ bool loadGL() {
     ok &= loadProc(glViewport_, "glViewport");
     ok &= loadProc(glClear_, "glClear");
     ok &= loadProc(glClearColor_, "glClearColor");
+    ok &= loadProc(glGenFramebuffers_, "glGenFramebuffers");
+    ok &= loadProc(glBindFramebuffer_, "glBindFramebuffer");
+    ok &= loadProc(glDeleteFramebuffers_, "glDeleteFramebuffers");
+    ok &= loadProc(glFramebufferTexture2D_, "glFramebufferTexture2D");
+    ok &= loadProc(glCheckFramebufferStatus_, "glCheckFramebufferStatus");
+    ok &= loadProc(glGenTextures_, "glGenTextures");
+    ok &= loadProc(glBindTexture_, "glBindTexture");
+    ok &= loadProc(glDeleteTextures_, "glDeleteTextures");
+    ok &= loadProc(glTexImage2D_, "glTexImage2D");
+    ok &= loadProc(glTexParameteri_, "glTexParameteri");
+    ok &= loadProc(glBlitFramebuffer_, "glBlitFramebuffer");
     return ok;
 }
 
@@ -131,8 +207,52 @@ void main() {
 
 } // namespace
 
+void GpuRaytracer::destroyFbo() {
+    if (fbo_) {
+        glDeleteFramebuffers_(1, &fbo_);
+        fbo_ = 0;
+    }
+    if (fboTex_) {
+        glDeleteTextures_(1, &fboTex_);
+        fboTex_ = 0;
+    }
+    fboW_ = fboH_ = 0;
+}
+
+bool GpuRaytracer::ensureFbo(int w, int h) {
+    if (fbo_ && fboW_ == w && fboH_ == h) {
+        return true;
+    }
+    destroyFbo();
+
+    glGenTextures_(1, &fboTex_);
+    glBindTexture_(GL_TEXTURE_2D, fboTex_);
+    glTexImage2D_(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture_(GL_TEXTURE_2D, 0);
+
+    glGenFramebuffers_(1, &fbo_);
+    glBindFramebuffer_(GL_FRAMEBUFFER, fbo_);
+    glFramebufferTexture2D_(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex_, 0);
+    GLenum status = glCheckFramebufferStatus_(GL_FRAMEBUFFER);
+    glBindFramebuffer_(GL_FRAMEBUFFER, 0);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+        std::fprintf(stderr, "FBO incomplete: 0x%x\n", static_cast<unsigned>(status));
+        destroyFbo();
+        return false;
+    }
+    fboW_ = w;
+    fboH_ = h;
+    return true;
+}
+
 void GpuRaytracer::shutdown() {
     if (glctx_) {
+        SDL_GL_MakeCurrent(window_, glctx_);
+        destroyFbo();
         if (program_) {
             glDeleteProgram_(program_);
             program_ = 0;
@@ -216,8 +336,58 @@ void GpuRaytracer::syncDrawableSize() {
     }
     int w = 0, h = 0;
     SDL_GL_GetDrawableSize(window_, &w, &h);
+    drawableW_ = std::max(1, w);
+    drawableH_ = std::max(1, h);
+}
+
+void GpuRaytracer::recomputeRtSize() {
+    float s = renderScale_;
+    if (s < 0.25f) {
+        s = 0.25f;
+    }
+    if (s > 2.0f) {
+        s = 2.0f;
+    }
+    int w = static_cast<int>(drawableW_ * s + 0.5f);
+    int h = static_cast<int>(drawableH_ * s + 0.5f);
+    if (maxW_ > 0 && w > maxW_) {
+        w = maxW_;
+    }
+    if (maxH_ > 0 && h > maxH_) {
+        h = maxH_;
+    }
     rtW_ = std::max(1, w);
     rtH_ = std::max(1, h);
+    // Use FBO when RT size differs from drawable (scale or clamp)
+    useFbo_ = (rtW_ != drawableW_ || rtH_ != drawableH_);
+}
+
+void GpuRaytracer::setRenderScale(float scale) {
+    if (scale < 0.25f) {
+        scale = 0.25f;
+    }
+    if (scale > 2.0f) {
+        scale = 2.0f;
+    }
+    if (std::fabs(scale - renderScale_) < 1e-4f) {
+        return;
+    }
+    renderScale_ = scale;
+    recomputeRtSize();
+}
+
+void GpuRaytracer::setMaxResolution(int maxW, int maxH) {
+    maxW_ = maxW;
+    maxH_ = maxH;
+    recomputeRtSize();
+}
+
+void GpuRaytracer::onResize(int /*windowW*/, int /*windowH*/) {
+    if (!ready_) {
+        return;
+    }
+    syncDrawableSize();
+    recomputeRtSize();
 }
 
 bool GpuRaytracer::init(SDL_Window* window) {
@@ -233,15 +403,12 @@ bool GpuRaytracer::init(SDL_Window* window) {
         std::fprintf(stderr, "SDL_GL_CreateContext failed: %s\n", SDL_GetError());
         return false;
     }
-
     if (SDL_GL_MakeCurrent(window_, glctx_) != 0) {
         std::fprintf(stderr, "SDL_GL_MakeCurrent failed: %s\n", SDL_GetError());
         return false;
     }
 
-    SDL_GL_SetSwapInterval(1);
-
-    if (!loadGL()) {
+    if (!loadAllProcs()) {
         return false;
     }
     if (!loadShaders()) {
@@ -250,36 +417,31 @@ bool GpuRaytracer::init(SDL_Window* window) {
 
     glGenVertexArrays_(1, &vao_);
     glBindVertexArray_(vao_);
+    glUseProgram_(program_);
 
     syncDrawableSize();
+    recomputeRtSize();
     ready_ = true;
     return true;
 }
 
-void GpuRaytracer::onResize(int /*windowW*/, int /*windowH*/) {
-    // Prefer drawable size (HiDPI); window size may differ
-    syncDrawableSize();
-}
-
 void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
-    glUseProgram_(program_);
-
-    auto loc3 = [&](const char* name, const Vec3& v) {
-        GLint l = glGetUniformLocation_(program_, name);
-        if (l >= 0) {
-            glUniform3f_(l, v.x, v.y, v.z);
+    auto loc1i = [this](const char* n, int v) {
+        GLint loc = glGetUniformLocation_(program_, n);
+        if (loc >= 0) {
+            glUniform1i_(loc, v);
         }
     };
-    auto loc1f = [&](const char* name, float v) {
-        GLint l = glGetUniformLocation_(program_, name);
-        if (l >= 0) {
-            glUniform1f_(l, v);
+    auto loc1f = [this](const char* n, float v) {
+        GLint loc = glGetUniformLocation_(program_, n);
+        if (loc >= 0) {
+            glUniform1f_(loc, v);
         }
     };
-    auto loc1i = [&](const char* name, int v) {
-        GLint l = glGetUniformLocation_(program_, name);
-        if (l >= 0) {
-            glUniform1i_(l, v);
+    auto loc3 = [this](const char* n, const Vec3& v) {
+        GLint loc = glGetUniformLocation_(program_, n);
+        if (loc >= 0) {
+            glUniform3f_(loc, v.x, v.y, v.z);
         }
     };
 
@@ -288,7 +450,8 @@ void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
     loc3("u_camRight", cam.right);
     loc3("u_camUp", cam.up);
     loc1f("u_fovScale", cam.fovScale);
-    loc1f("u_aspect", static_cast<float>(rtW_) / static_cast<float>(rtH_));
+    float aspect = rtH_ > 0 ? static_cast<float>(rtW_) / static_cast<float>(rtH_) : 1.0f;
+    loc1f("u_aspect", aspect);
 
     loc3("u_lightPos", scene.lightPos);
     loc3("u_lightColor", scene.lightColor);
@@ -356,13 +519,41 @@ void GpuRaytracer::render(const Scene& scene, const Camera& cam) {
     }
 
     syncDrawableSize();
-    glViewport_(0, 0, rtW_, rtH_);
+    recomputeRtSize();
+
+    if (useFbo_) {
+        if (!ensureFbo(rtW_, rtH_)) {
+            // Fall back to direct drawable render
+            useFbo_ = false;
+            rtW_ = drawableW_;
+            rtH_ = drawableH_;
+            glBindFramebuffer_(GL_FRAMEBUFFER, 0);
+            glViewport_(0, 0, rtW_, rtH_);
+        } else {
+            glBindFramebuffer_(GL_FRAMEBUFFER, fbo_);
+            glViewport_(0, 0, rtW_, rtH_);
+        }
+    } else {
+        glBindFramebuffer_(GL_FRAMEBUFFER, 0);
+        glViewport_(0, 0, rtW_, rtH_);
+    }
+
     glClearColor_(0.f, 0.f, 0.f, 1.f);
     glClear_(GL_COLOR_BUFFER_BIT);
 
+    glUseProgram_(program_);
     uploadScene(scene, cam);
     glBindVertexArray_(vao_);
     glDrawArrays_(GL_TRIANGLES, 0, 3);
+
+    if (useFbo_ && fbo_) {
+        // Blit scaled RT to default framebuffer (window drawable)
+        glBindFramebuffer_(GL_READ_FRAMEBUFFER, fbo_);
+        glBindFramebuffer_(GL_DRAW_FRAMEBUFFER, 0);
+        glBlitFramebuffer_(0, 0, rtW_, rtH_, 0, 0, drawableW_, drawableH_,
+                           GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        glBindFramebuffer_(GL_FRAMEBUFFER, 0);
+    }
 }
 
 void GpuRaytracer::present() {
