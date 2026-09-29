@@ -14,6 +14,7 @@ struct AppConfig {
     bool twoPlayer = false;
     int maxBounces = 3;   // 0..3 reflection quality
     bool fullscreen = false;
+    bool vsync = true;
 };
 
 // Load from path (or default locations). Returns true if a file was read.

@@ -73,9 +73,11 @@ bool Game::initWindowAndBackend() {
             std::fprintf(stderr, "GPU raytracer init failed.\n");
             return false;
         }
+        applyVsync();
     } else {
         sdlRenderer_ = SDL_CreateRenderer(
-            window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+            window_, -1,
+            SDL_RENDERER_ACCELERATED | (vsync_ ? SDL_RENDERER_PRESENTVSYNC : 0));
         if (!sdlRenderer_) {
             sdlRenderer_ = SDL_CreateRenderer(window_, -1, 0);
         }
@@ -188,6 +190,7 @@ bool Game::init() {
         if (loadConfig(cfg, &from)) {
             std::fprintf(stderr, "Loaded config from %s\n", from.c_str());
             applyConfig(cfg);
+            applyVsync();
             // Backend is chosen at construction; optional switch if mismatch
             if (cfg.useGpu && backend_ != RenderBackend::Gpu) {
                 switchBackend(RenderBackend::Gpu);
@@ -328,6 +331,7 @@ AppConfig Game::currentConfig() const {
     c.cameraMode = static_cast<int>(cameraMode_);
     c.twoPlayer = twoPlayer_;
     c.maxBounces = maxBounces_;
+    c.vsync = vsync_;
     if (window_) {
         Uint32 flags = SDL_GetWindowFlags(window_);
         c.fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
@@ -344,6 +348,7 @@ void Game::applyConfig(const AppConfig& cfg) {
     cameraMode_ = static_cast<CameraMode>(std::max(0, std::min(2, cfg.cameraMode)));
     twoPlayer_ = cfg.twoPlayer;
     maxBounces_ = std::max(0, std::min(3, cfg.maxBounces));
+    vsync_ = cfg.vsync;
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
 }
@@ -351,6 +356,19 @@ void Game::applyConfig(const AppConfig& cfg) {
 void Game::persistConfig() {
     saveConfig(currentConfig(), nullptr);
 }
+
+void Game::applyVsync() {
+    if (backend_ == RenderBackend::Gpu) {
+        SDL_GL_SetSwapInterval(vsync_ ? 1 : 0);
+    }
+    // CPU path uses PRESENTVSYNC flag at renderer create; recreate if needed is heavy —
+    // store preference for next backend init.
+}
+
+bool Game::isMatchPoint() const {
+    return (playerScore_ == pointsToWin_ - 1) || (aiScore_ == pointsToWin_ - 1);
+}
+
 
 
 void Game::updateDemo(float dt) {
@@ -489,6 +507,7 @@ void Game::updateShake(float dt) {
 }
 
 void Game::update(float dt) {
+    animTime_ += dt;
     updateShake(dt);
 
     if (ballFlash_ > 0.0f) {
@@ -725,8 +744,13 @@ void Game::addScoreboard(Scene& scene) const {
     // Scores as 7-segment digits (player left, AI right) — front face of board
     const float digitZ = boardZ + boardD * 0.5f + 0.06f;
     const float digitY = boardY;
-    const Vec3 colPlayer(0.35f, 0.85f, 1.0f);
-    const Vec3 colAi(1.0f, 0.45f, 0.35f);
+    Vec3 colPlayer(0.35f, 0.85f, 1.0f);
+    Vec3 colAi(1.0f, 0.45f, 0.35f);
+    if (isMatchPoint() && state_ == GameState::Play) {
+        float g = 1.15f + 0.2f * (0.5f + 0.5f * std::sin(animTime_ * 6.0f));
+        colPlayer = colPlayer * g;
+        colAi = colAi * g;
+    }
 
     int pTens = (playerScore_ / 10) % 10;
     int pOnes = playerScore_ % 10;
@@ -741,6 +765,23 @@ void Game::addScoreboard(Scene& scene) const {
 }
 
 
+
+
+void Game::addServeCountdown(Scene& scene) const {
+    if (serveTimer_ <= 0.0f || state_ != GameState::Play) {
+        return;
+    }
+    // Map remaining time to 3,2,1
+    int n = 1;
+    if (serveTimer_ > SERVE_DELAY * (2.0f / 3.0f)) {
+        n = 3;
+    } else if (serveTimer_ > SERVE_DELAY * (1.0f / 3.0f)) {
+        n = 2;
+    }
+    const float pulse = 0.15f * std::sin(serveTimer_ * 12.0f);
+    addDigitBoxes(scene, 0.0f, 1.4f + pulse, FIELD_L * 0.5f,
+                  n, Vec3(1.0f, 0.95f, 0.4f));
+}
 
 void Game::addTitleGeometry(Scene& scene) const {
     // Block letters "KUGEL" in 5x7 voxels above the near field (attract ornament)
@@ -913,6 +954,7 @@ void Game::buildScene() {
     if (state_ == GameState::Attract || state_ == GameState::GameOver) {
         addTitleGeometry(scene_);
     }
+    addServeCountdown(scene_);
 
     Sphere ball;
     ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
@@ -957,6 +999,26 @@ void Game::buildScene() {
 
     scene_.lightPos = Vec3(0.0f, WALL_H - 0.5f, FIELD_L * 0.45f);
     scene_.maxBounces = maxBounces_;
+
+    if (state_ == GameState::Play && isMatchPoint()) {
+        // Warm, pulsing key light on match point
+        float phase = animTime_ * 5.5f;
+        float pulse = 0.55f + 0.45f * (0.5f + 0.5f * std::sin(phase));
+        scene_.lightColor = Vec3(1.1f + 0.6f * pulse, 0.8f + 0.2f * pulse, 0.55f + 0.15f * pulse);
+        scene_.ambient = Vec3(0.07f + 0.05f * pulse, 0.05f, 0.04f);
+        scene_.lightPos = Vec3(0.0f, WALL_H - 0.25f, FIELD_L * 0.5f);
+    } else if (state_ == GameState::GameOver) {
+        float pulse = 0.5f + 0.5f * std::sin(gameOverTime_ * 4.0f);
+        if (playerWon_) {
+            scene_.lightColor = Vec3(0.85f + 0.4f * pulse, 1.15f + 0.25f * pulse, 0.9f);
+        } else {
+            scene_.lightColor = Vec3(1.25f, 0.4f + 0.25f * pulse, 0.35f);
+        }
+        scene_.ambient = Vec3(0.1f, 0.1f, 0.12f);
+    } else {
+        scene_.lightColor = Vec3(1.2f, 1.15f, 1.05f);
+        scene_.ambient = Vec3(0.12f, 0.12f, 0.15f);
+    }
 }
 
 void Game::updateCamera(float dt) {
@@ -1075,10 +1137,10 @@ void Game::updateHud() {
     }
     char buf[320];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | refl%d | %.0fFPS | "
-                  "1diff 2pts 3cam 4 1/2P 5refl | F8 | ESC",
+                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | refl%d %s | %.0fFPS | "
+                  "1-5 opts 6 vsync | F8 | ESC",
                   mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
-                  maxBounces_, fpsSmooth_);
+                  maxBounces_, vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
 }
 
@@ -1197,6 +1259,32 @@ void Game::run() {
                     break;
                 case SDLK_5:
                     cycleBounces();
+                    break;
+                case SDLK_6:
+                    vsync_ = !vsync_;
+                    applyVsync();
+                    // CPU vsync requires renderer recreate
+                    if (backend_ == RenderBackend::Cpu) {
+                        int w = fbW_, h = fbH_;
+                        if (texture_) {
+                            SDL_DestroyTexture(texture_);
+                            texture_ = nullptr;
+                        }
+                        if (sdlRenderer_) {
+                            SDL_DestroyRenderer(sdlRenderer_);
+                            sdlRenderer_ = nullptr;
+                        }
+                        sdlRenderer_ = SDL_CreateRenderer(
+                            window_, -1,
+                            SDL_RENDERER_ACCELERATED | (vsync_ ? SDL_RENDERER_PRESENTVSYNC : 0));
+                        if (!sdlRenderer_) {
+                            sdlRenderer_ = SDL_CreateRenderer(window_, -1, 0);
+                        }
+                        fbW_ = fbH_ = 0;
+                        ensureCpuFramebuffer(std::max(1, w), std::max(1, h));
+                    }
+                    audio_.playSoftThud(vsync_ ? 1.0f : 0.7f, 0.2f);
+                    persistConfig();
                     break;
                 default:
                     break;

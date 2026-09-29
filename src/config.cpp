@@ -98,6 +98,8 @@ bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {
             cfg.maxBounces = std::atoi(val.c_str());
         } else if (key == "fullscreen") {
             cfg.fullscreen = (val == "1" || val == "true");
+        } else if (key == "vsync") {
+            cfg.vsync = (val == "1" || val == "true");
         }
     }
     if (cfg.maxBounces < 0) {
@@ -138,5 +140,6 @@ bool saveConfig(const AppConfig& cfg, std::string* savedTo) {
     out << "twoplayer=" << (cfg.twoPlayer ? 1 : 0) << "\n";
     out << "bounces=" << cfg.maxBounces << "\n";
     out << "fullscreen=" << (cfg.fullscreen ? 1 : 0) << "\n";
+    out << "vsync=" << (cfg.vsync ? 1 : 0) << "\n";
     return true;
 }

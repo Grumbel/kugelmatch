@@ -43,6 +43,7 @@ private:
     CameraMode cameraMode_ = CameraMode::Paddle;
     bool twoPlayer_ = false;
     int maxBounces_ = 3;
+    bool vsync_ = true;
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* sdlRenderer_ = nullptr;
@@ -86,6 +87,7 @@ private:
     // Attract demo: light AI-vs-AI motion
     bool demoActive_ = true;
     float gameOverTime_ = 0.0f;
+    float animTime_ = 0.0f;
     bool playerWon_ = false;
 
     static constexpr float FIELD_W = 8.0f;
@@ -118,6 +120,9 @@ private:
     void addScoreboard(Scene& scene) const;
     void addOptionsGeometry(Scene& scene) const;
     void addTitleGeometry(Scene& scene) const;
+    void addServeCountdown(Scene& scene) const;
+    void applyVsync();
+    bool isMatchPoint() const;
     void applyConfig(const AppConfig& cfg);
     AppConfig currentConfig() const;
     void persistConfig();

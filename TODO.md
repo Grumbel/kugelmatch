@@ -9,29 +9,28 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `97294e6` — title, config, celebration, quality
+**Tip:** (pending) — match-point light, serve countdown, vsync
 
 ## Done
 
-- [x] Scoreboard, states, options geometry, 2P, cameras, demo
-- [x] Block-letter **KUGEL** title (box voxels) in attract / game over
-- [x] Config persistence (`~/.config/kugelmatch/config.cfg`)
-- [x] Reflection quality 0–3 (key **5**); CPU + GPU respect `scene.maxBounces`
-- [x] Winner celebration camera (faster orbit, look at scoreboard)
+- [x] Title, config, reflection quality, win camera
+- [x] Match-point warm lighting pulse + scoreboard digit glow
+- [x] Raytraced serve countdown (3-2-1 boxes above midfield)
+- [x] Vsync toggle (key **6**) + config `vsync=`
 
 ## Open / follow-ups
 
-- [ ] More glyph words / localized title
-- [ ] Match-point dramatic lighting pulse
-- [ ] Optional vsync / FPS cap in config
+- [ ] Soft shadow samples on GPU
+- [ ] Block-letter "MATCH" flash on match point
+- [ ] Optional frame-time sleep cap when vsync off
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-013.1-options-2p-cameras-a7bcc21.bundle`
-Next: `kugelmatch-014.1-title-config-quality-a7bcc21.bundle`
+Previous: `kugelmatch-014.1-title-config-quality-a7bcc21.bundle`
+Next: `kugelmatch-015.1-matchpoint-countdown-vsync-a7bcc21.bundle`
 
 ## Notes
 
-- GPU: MAX_SPHERES=16, MAX_BOXES=128 — sync shader + header + embedded.
-- Config keys: backend, volume, mute, difficulty, points, camera, twoplayer, bounces, fullscreen.
+- GPU limits: MAX_SPHERES=16, MAX_BOXES=128
+- Config keys include: vsync
