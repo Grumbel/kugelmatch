@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — VERSION-driven versioning + --version
+**Tip:** `828b2d0` — VERSION-driven versioning + --version
 
 ## Done
 
