@@ -9,27 +9,26 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `68a5149` — v1.2.0, full alphabet, CHANGELOG
+**Tip:** (pending) — v1.2.1 PAUSE banner, CPU scale
 
 ## Done
 
-- [x] Glyphs module + Nix CI
-- [x] Full A–Z 5×7 alphabet (+ space)
-- [x] Attract cycle SPACE → PONG → OPTS → GO
-- [x] Version **1.2.0** (`version.hpp`, flake, window title)
-- [x] CHANGELOG.md
+- [x] v1.2.0 alphabet / CHANGELOG
+- [x] Voxel **PAUSE** banner + dimmed pause lighting
+- [x] CPU `cpu_scale` (supersample/undersample before max clamp)
+- [x] Version **1.2.1**
 
 ## Open / follow-ups
 
-- [ ] Tag `v1.2.0` on upstream when ready
-- [ ] Optional high-DPI CPU supersample
+- [ ] Tag releases on upstream
+- [ ] GPU render scale / quality preset bundle key
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-023.1-glyphs-nix-ci-a7bcc21.bundle`
-Next: `kugelmatch-024.1-v1.2.0-alphabet-a7bcc21.bundle`
+Previous: `kugelmatch-024.1-v1.2.0-alphabet-a7bcc21.bundle`
+Next: `kugelmatch-025.1-pause-cpu-scale-a7bcc21.bundle`
 
 ## Notes
 
-- `KUGELMATCH_VERSION_STRING` in `include/version.hpp`
+- `cpu_scale` default 1.0; useful values 0.5 (faster) or 1.5 (sharper, costlier)

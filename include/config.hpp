@@ -22,6 +22,7 @@ struct AppConfig {
     bool slowmoReplay = true;
     int cpuMaxWidth = 1280;  // clamp CPU RT resolution (0 = unlimited)
     int cpuMaxHeight = 720;
+    float cpuScale = 1.0f; // RT scale before clamp (e.g. 1.5 supersample)
 };
 
 // Load from path (or default locations). Returns true if a file was read.

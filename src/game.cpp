@@ -134,6 +134,9 @@ bool Game::switchBackend(RenderBackend next) {
 }
 
 bool Game::ensureCpuFramebuffer(int w, int h) {
+    // Optional supersample / undersample before max clamp
+    w = static_cast<int>(w * cpuScale_ + 0.5f);
+    h = static_cast<int>(h * cpuScale_ + 0.5f);
     if (cpuMaxWidth_ > 0 && w > cpuMaxWidth_) {
         w = cpuMaxWidth_;
     }
@@ -385,6 +388,7 @@ AppConfig Game::currentConfig() const {
     c.slowmoReplay = slowmoReplay_;
     c.cpuMaxWidth = cpuMaxWidth_;
     c.cpuMaxHeight = cpuMaxHeight_;
+    c.cpuScale = cpuScale_;
     if (window_) {
         Uint32 flags = SDL_GetWindowFlags(window_);
         c.fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
@@ -413,6 +417,9 @@ void Game::applyConfig(const AppConfig& cfg) {
     slowmoReplay_ = cfg.slowmoReplay;
     cpuMaxWidth_ = cfg.cpuMaxWidth;
     cpuMaxHeight_ = cfg.cpuMaxHeight;
+    cpuScale_ = cfg.cpuScale;
+    if (cpuScale_ < 0.25f) cpuScale_ = 0.25f;
+    if (cpuScale_ > 2.0f) cpuScale_ = 2.0f;
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
 }
@@ -908,6 +915,21 @@ void Game::addServeCountdown(Scene& scene) const {
 }
 
 
+
+void Game::addPauseBanner(Scene& scene) const {
+    if (state_ != GameState::Pause) {
+        return;
+    }
+    float pulse = 0.55f + 0.45f * std::sin(animTime_ * 3.5f);
+    float cell = 0.13f;
+    float gap = 0.16f;
+    const char* word = "PAUSE";
+    float width = 5 * (5 * cell + gap) - gap;
+    float startX = -width * 0.5f;
+    Vec3 col(0.95f, 0.9f * pulse, 0.35f + 0.25f * pulse);
+    glyphs::addWord(scene, word, startX, 1.8f, FIELD_L * 0.35f, cell, gap, col, 0.5f);
+}
+
 void Game::addAttractHint(Scene& scene) const {
     if (state_ != GameState::Attract) {
         return;
@@ -1078,6 +1100,7 @@ void Game::buildScene() {
         addTitleGeometry(scene_);
     }
     addAttractHint(scene_);
+    addPauseBanner(scene_);
     addServeCountdown(scene_);
     addMatchPointBanner(scene_);
     addGameOverBanner(scene_);
@@ -1160,6 +1183,10 @@ void Game::buildScene() {
             scene_.exposure = exposure_ * (0.9f + 0.1f * pulse);
         }
         scene_.ambient = Vec3(0.1f, 0.1f, 0.12f);
+    } else if (state_ == GameState::Pause) {
+        scene_.lightColor = Vec3(0.7f, 0.7f, 0.75f);
+        scene_.ambient = Vec3(0.08f, 0.08f, 0.1f);
+        scene_.exposure = exposure_ * 0.85f;
     } else {
         switch (theme_) {
         case Theme::Neon:

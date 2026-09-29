@@ -60,6 +60,7 @@ private:
     bool slowmoReplay_ = true;
     int cpuMaxWidth_ = 1280;
     int cpuMaxHeight_ = 720;
+    float cpuScale_ = 1.0f;
     bool replayTowardPlayer_ = false; // ball exited near player end
 
     SDL_Window* window_ = nullptr;
@@ -144,6 +145,7 @@ private:
     void addMatchPointBanner(Scene& scene) const;
     void addGameOverBanner(Scene& scene) const;
     void addAttractHint(Scene& scene) const;
+    void addPauseBanner(Scene& scene) const;
     void cycleShadowSamples();
     void cycleTheme();
     void adjustExposure(float delta);

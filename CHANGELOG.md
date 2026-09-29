@@ -5,7 +5,13 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
+## 1.2.1
+
+- Voxel **PAUSE** banner and dimmed lighting while paused
+- CPU render scale (`cpu_scale` in config, 0.25–2.0) before resolution clamp
+
 ## 1.2.0
+
 
 - Shared `glyphs` module (full A–Z 5×7 + 7-segment digits)
 - Attract hints cycle SPACE → PONG → OPTS → GO
