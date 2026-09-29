@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** see `git rev-parse --short HEAD` after pull — v1.2.3 GPU FBO render scale
+**Tip:** `5802e50` — v1.2.3 GPU FBO render scale
 
 ## Done
 
