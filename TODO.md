@@ -9,32 +9,29 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `d7b4c0c` — options, 2P, cameras, demo
+**Tip:** (pending) — title, config, celebration, reflection quality
 
 ## Done
 
-- [x] Raytraced scoreboard, states, native res, F8 backend switch
-- [x] Attract demo AI-vs-AI rally under orbit camera
-- [x] Difficulty Easy/Normal/Hard (key **1**) — AI speed + prediction
-- [x] Points to win 7/11/15/21 (key **2**) — floor digits + match end
-- [x] Camera modes Paddle/High/Sideline (key **3**)
-- [x] Local 2-player (key **4**): P1 A/D, P2 arrows
-- [x] Raytraced options readout: difficulty pillars, cam pads, 1P/2P orb
+- [x] Scoreboard, states, options geometry, 2P, cameras, demo
+- [x] Block-letter **KUGEL** title (box voxels) in attract / game over
+- [x] Config persistence (`~/.config/kugelmatch/config.cfg`)
+- [x] Reflection quality 0–3 (key **5**); CPU + GPU respect `scene.maxBounces`
+- [x] Winner celebration camera (faster orbit, look at scoreboard)
 
 ## Open / follow-ups
 
-- [ ] Config file persistence
-- [ ] Reflections quality toggle
-- [ ] Block-letter title in attract (box glyphs)
-- [ ] Winner celebration camera beat
+- [ ] More glyph words / localized title
+- [ ] Match-point dramatic lighting pulse
+- [ ] Optional vsync / FPS cap in config
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-012.1-scoreboard-states-a7bcc21.bundle`
-Next: `kugelmatch-013.1-options-2p-cameras-a7bcc21.bundle`
+Previous: `kugelmatch-013.1-options-2p-cameras-a7bcc21.bundle`
+Next: `kugelmatch-014.1-title-config-quality-a7bcc21.bundle`
 
 ## Notes
 
-- GPU limits: MAX_SPHERES=16, MAX_BOXES=64 — keep shader + header + embedded in sync.
-- Options are scene geometry, not overlays.
+- GPU: MAX_SPHERES=16, MAX_BOXES=128 — sync shader + header + embedded.
+- Config keys: backend, volume, mute, difficulty, points, camera, twoplayer, bounces, fullscreen.

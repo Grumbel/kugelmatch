@@ -3,6 +3,7 @@
 #pragma once
 
 #include "audio.hpp"
+#include "config.hpp"
 #include "gpu_raytracer.hpp"
 #include "raytracer.hpp"
 #include "scene.hpp"
@@ -41,6 +42,7 @@ private:
     Difficulty difficulty_ = Difficulty::Normal;
     CameraMode cameraMode_ = CameraMode::Paddle;
     bool twoPlayer_ = false;
+    int maxBounces_ = 3;
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* sdlRenderer_ = nullptr;
@@ -83,6 +85,8 @@ private:
 
     // Attract demo: light AI-vs-AI motion
     bool demoActive_ = true;
+    float gameOverTime_ = 0.0f;
+    bool playerWon_ = false;
 
     static constexpr float FIELD_W = 8.0f;
     static constexpr float FIELD_L = 16.0f;
@@ -113,6 +117,11 @@ private:
     void buildScene();
     void addScoreboard(Scene& scene) const;
     void addOptionsGeometry(Scene& scene) const;
+    void addTitleGeometry(Scene& scene) const;
+    void applyConfig(const AppConfig& cfg);
+    AppConfig currentConfig() const;
+    void persistConfig();
+    void cycleBounces();
     void addDigitBoxes(Scene& scene, float ox, float oy, float oz, int digit,
                        const Vec3& color) const;
     void presentCpu();

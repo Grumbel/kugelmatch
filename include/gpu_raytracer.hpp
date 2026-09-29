@@ -14,7 +14,7 @@ public:
 
     // Must match shaders/raytrace.frag
     static constexpr int MAX_SPHERES = 16;
-    static constexpr int MAX_BOXES = 64;
+    static constexpr int MAX_BOXES = 128;
     static constexpr int MAX_PLANES = 12;
 
     GpuRaytracer() = default;

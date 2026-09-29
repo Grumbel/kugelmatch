@@ -124,7 +124,7 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
 }
 
 Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
-    if (depth > 3) {
+    if (depth > scene.maxBounces) {
         return scene.skyColor;
     }
 
@@ -154,7 +154,7 @@ Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
     float spec = std::pow(std::max(0.0f, h.normal.dot(halfV)), 32.0f);
     col += scene.lightColor * (spec * 0.4f * shadowFactor);
 
-    if (h.reflectivity > 0.01f && depth < 3) {
+    if (h.reflectivity > 0.01f && depth < scene.maxBounces) {
         Ray refl;
         refl.origin = h.point + h.normal * 1e-3f;
         refl.dir = ray.dir.reflect(h.normal).normalized();

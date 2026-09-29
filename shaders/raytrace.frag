@@ -6,9 +6,8 @@ in vec2 v_uv;
 out vec4 fragColor;
 
 #define MAX_SPHERES 16
-#define MAX_BOXES   64
+#define MAX_BOXES   128
 #define MAX_PLANES  12
-#define MAX_DEPTH   3
 
 uniform vec3 u_camPos;
 uniform vec3 u_camForward;
@@ -21,6 +20,7 @@ uniform vec3 u_lightPos;
 uniform vec3 u_lightColor;
 uniform vec3 u_ambient;
 uniform vec3 u_skyColor;
+uniform int u_maxBounces;
 
 uniform int u_numSpheres;
 uniform vec3 u_sphereCenter[MAX_SPHERES];
@@ -172,7 +172,11 @@ vec3 trace(vec3 ro, vec3 rd) {
     vec3 throughput = vec3(1.0);
     vec3 result = vec3(0.0);
 
-    for (int bounce = 0; bounce <= MAX_DEPTH; ++bounce) {
+    int maxB = clamp(u_maxBounces, 0, 3);
+    for (int bounce = 0; bounce <= 3; ++bounce) {
+        if (bounce > maxB) {
+            break;
+        }
         Hit h = intersect(ro, rd);
         if (!h.hit) {
             result += throughput * u_skyColor;
@@ -180,11 +184,10 @@ vec3 trace(vec3 ro, vec3 rd) {
         }
 
         vec3 local = shadeHit(h, rd);
-        // Non-reflected portion contributes now
         float kr = h.reflectivity;
         result += throughput * local * (1.0 - kr);
 
-        if (kr < 0.01 || bounce == MAX_DEPTH) {
+        if (kr < 0.01 || bounce == maxB) {
             break;
         }
 

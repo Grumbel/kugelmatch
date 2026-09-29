@@ -182,6 +182,24 @@ bool Game::init() {
         std::fprintf(stderr, "Warning: audio init failed; continuing without sound.\n");
     }
 
+    {
+        AppConfig cfg;
+        std::string from;
+        if (loadConfig(cfg, &from)) {
+            std::fprintf(stderr, "Loaded config from %s\n", from.c_str());
+            applyConfig(cfg);
+            // Backend is chosen at construction; optional switch if mismatch
+            if (cfg.useGpu && backend_ != RenderBackend::Gpu) {
+                switchBackend(RenderBackend::Gpu);
+            } else if (!cfg.useGpu && backend_ != RenderBackend::Cpu) {
+                switchBackend(RenderBackend::Cpu);
+            }
+            if (cfg.fullscreen) {
+                SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP);
+            }
+        }
+    }
+
     playerX_ = 0.0f;
     player2X_ = 0.0f;
     ballX_ = 0.0f;
@@ -200,6 +218,7 @@ bool Game::init() {
 }
 
 void Game::shutdown() {
+    persistConfig();
     audio_.shutdown();
     shutdownBackend();
     if (window_) {
@@ -253,6 +272,7 @@ void Game::cycleDifficulty() {
         break;
     }
     audio_.playSoftThud(1.2f, 0.2f);
+    persistConfig();
 }
 
 void Game::cyclePointsToWin() {
@@ -266,6 +286,7 @@ void Game::cyclePointsToWin() {
     }
     pointsToWin_ = opts[(idx + 1) % 4];
     audio_.playSoftThud(0.9f, 0.2f);
+    persistConfig();
 }
 
 void Game::cycleCameraMode() {
@@ -281,12 +302,56 @@ void Game::cycleCameraMode() {
         break;
     }
     audio_.playSoftThud(1.0f, 0.2f);
+    persistConfig();
 }
 
 void Game::toggleTwoPlayer() {
     twoPlayer_ = !twoPlayer_;
     audio_.playClank(twoPlayer_ ? 1.1f : 0.8f, 0.35f);
+    persistConfig();
 }
+
+
+void Game::cycleBounces() {
+    maxBounces_ = (maxBounces_ + 1) % 4; // 0..3
+    audio_.playSoftThud(0.7f + maxBounces_ * 0.15f, 0.25f);
+    persistConfig();
+}
+
+AppConfig Game::currentConfig() const {
+    AppConfig c;
+    c.useGpu = (backend_ == RenderBackend::Gpu);
+    c.volume = audio_.masterVolume();
+    c.mute = audio_.muted();
+    c.difficulty = static_cast<int>(difficulty_);
+    c.pointsToWin = pointsToWin_;
+    c.cameraMode = static_cast<int>(cameraMode_);
+    c.twoPlayer = twoPlayer_;
+    c.maxBounces = maxBounces_;
+    if (window_) {
+        Uint32 flags = SDL_GetWindowFlags(window_);
+        c.fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
+    }
+    return c;
+}
+
+void Game::applyConfig(const AppConfig& cfg) {
+    difficulty_ = static_cast<Difficulty>(std::max(0, std::min(2, cfg.difficulty)));
+    pointsToWin_ = cfg.pointsToWin;
+    if (pointsToWin_ != 7 && pointsToWin_ != 11 && pointsToWin_ != 15 && pointsToWin_ != 21) {
+        pointsToWin_ = 11;
+    }
+    cameraMode_ = static_cast<CameraMode>(std::max(0, std::min(2, cfg.cameraMode)));
+    twoPlayer_ = cfg.twoPlayer;
+    maxBounces_ = std::max(0, std::min(3, cfg.maxBounces));
+    audio_.setMasterVolume(cfg.volume);
+    audio_.setMuted(cfg.mute);
+}
+
+void Game::persistConfig() {
+    saveConfig(currentConfig(), nullptr);
+}
+
 
 void Game::updateDemo(float dt) {
     // Slow AI-vs-AI rally for attract mode
@@ -441,6 +506,12 @@ void Game::update(float dt) {
         return;
     }
 
+    if (state_ == GameState::GameOver) {
+        gameOverTime_ += dt;
+        attractTime_ += dt * 0.5f; // keep some motion continuity if returning to attract
+        return;
+    }
+
     if (state_ == GameState::Intro) {
         introT_ += dt / INTRO_DURATION;
         if (introT_ >= 1.0f) {
@@ -451,7 +522,7 @@ void Game::update(float dt) {
         return;
     }
 
-    if (state_ == GameState::Pause || state_ == GameState::GameOver) {
+    if (state_ == GameState::Pause) {
         return;
     }
 
@@ -565,6 +636,9 @@ void Game::update(float dt) {
         triggerShake(0.06f);
         if (aiScore_ >= pointsToWin_) {
             state_ = GameState::GameOver;
+            gameOverTime_ = 0.0f;
+            playerWon_ = false;
+            audio_.playClank(0.5f, 0.6f);
         } else {
             queueServe(false);
         }
@@ -574,6 +648,9 @@ void Game::update(float dt) {
         triggerShake(0.06f);
         if (playerScore_ >= pointsToWin_) {
             state_ = GameState::GameOver;
+            gameOverTime_ = 0.0f;
+            playerWon_ = true;
+            audio_.playClank(1.4f, 0.7f);
         } else {
             queueServe(true);
         }
@@ -663,6 +740,54 @@ void Game::addScoreboard(Scene& scene) const {
     addDigitBoxes(scene, 1.05f, digitY, digitZ, aOnes, colAi);
 }
 
+
+
+void Game::addTitleGeometry(Scene& scene) const {
+    // Block letters "KUGEL" in 5x7 voxels above the near field (attract ornament)
+    // Glyphs packed as 7 rows of 5 bits (MSB = left)
+    auto glyph = [](char ch) -> const int* {
+        // each int is one row, bits 4..0
+        static const int K[7] = {0b10001,0b10010,0b10100,0b11000,0b10100,0b10010,0b10001};
+        static const int U[7] = {0b10001,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110};
+        static const int G[7] = {0b01110,0b10001,0b10000,0b10111,0b10001,0b10001,0b01110};
+        static const int E[7] = {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111};
+        static const int L[7] = {0b10000,0b10000,0b10000,0b10000,0b10000,0b10000,0b11111};
+        switch (ch) {
+        case 'K': return K;
+        case 'U': return U;
+        case 'G': return G;
+        case 'E': return E;
+        case 'L': return L;
+        default: return E;
+        }
+    };
+
+    const char* word = "KUGEL";
+    const float cell = 0.14f;
+    const float gap = 0.22f;
+    const float startX = -1.7f;
+    const float baseY = 2.0f;
+    const float z = 3.5f;
+    const Vec3 col(0.95f, 0.75f, 0.25f);
+
+    for (int ci = 0; word[ci]; ++ci) {
+        const int* rows = glyph(word[ci]);
+        float ox = startX + ci * (5 * cell + gap);
+        for (int r = 0; r < 7; ++r) {
+            int bits = rows[r];
+            for (int c = 0; c < 5; ++c) {
+                if (bits & (1 << (4 - c))) {
+                    float x0 = ox + c * cell;
+                    float y0 = baseY + (6 - r) * cell;
+                    pushBox(scene,
+                            Vec3(x0, y0, z),
+                            Vec3(x0 + cell * 0.9f, y0 + cell * 0.9f, z + 0.1f),
+                            col, 0.55f);
+                }
+            }
+        }
+    }
+}
 
 void Game::addOptionsGeometry(Scene& scene) const {
     // Three difficulty pillars along the near-left wall (visual options readout)
@@ -785,6 +910,9 @@ void Game::buildScene() {
 
     addScoreboard(scene_);
     addOptionsGeometry(scene_);
+    if (state_ == GameState::Attract || state_ == GameState::GameOver) {
+        addTitleGeometry(scene_);
+    }
 
     Sphere ball;
     ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
@@ -828,6 +956,7 @@ void Game::buildScene() {
     }
 
     scene_.lightPos = Vec3(0.0f, WALL_H - 0.5f, FIELD_L * 0.45f);
+    scene_.maxBounces = maxBounces_;
 }
 
 void Game::updateCamera(float dt) {
@@ -849,8 +978,20 @@ void Game::updateCamera(float dt) {
         camera_.set(camPos, lookAt, up, 70.0f);
     };
 
-    if (state_ == GameState::Attract || state_ == GameState::GameOver) {
+    if (state_ == GameState::Attract) {
         orbitCam(attractTime_);
+        return;
+    }
+
+    if (state_ == GameState::GameOver) {
+        // Victory/defeat beat: faster higher orbit, slight bob toward scoreboard
+        float t = gameOverTime_;
+        float ang = t * 0.85f;
+        float rad = 9.0f + 1.5f * std::sin(t * 1.2f);
+        float height = 5.0f + 0.8f * std::sin(t * 2.0f);
+        Vec3 pos(std::sin(ang) * rad, height, FIELD_L * 0.5f + std::cos(ang) * rad * 0.7f);
+        Vec3 look(0.0f, WALL_H - 1.0f, FIELD_L * 0.5f); // look at scoreboard
+        camera_.set(pos, look, up, 52.0f);
         return;
     }
 
@@ -934,10 +1075,10 @@ void Game::updateHud() {
     }
     char buf[320];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | %.0fFPS | "
-                  "1 diff 2 pts 3 cam 4 1P/2P | F8 | ESC",
+                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | refl%d | %.0fFPS | "
+                  "1diff 2pts 3cam 4 1/2P 5refl | F8 | ESC",
                   mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
-                  fpsSmooth_);
+                  maxBounces_, fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
 }
 
@@ -1014,6 +1155,8 @@ void Game::run() {
                     if (!switchBackend(backend_ == RenderBackend::Gpu ? RenderBackend::Cpu
                                                                       : RenderBackend::Gpu)) {
                         std::fprintf(stderr, "Backend switch failed.\n");
+                    } else {
+                        persistConfig();
                     }
                     break;
                 case SDLK_RETURN:
@@ -1051,6 +1194,9 @@ void Game::run() {
                     break;
                 case SDLK_4:
                     toggleTwoPlayer();
+                    break;
+                case SDLK_5:
+                    cycleBounces();
                     break;
                 default:
                     break;
