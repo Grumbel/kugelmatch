@@ -9,18 +9,19 @@
 // Full analytic RT — no scene meshes.
 class GpuRaytracer {
 public:
-    // Default window size (also used before the first resize query)
-    static constexpr int DEFAULT_WIDTH = 640;
-    static constexpr int DEFAULT_HEIGHT = 480;
+    static constexpr int DEFAULT_WIDTH = 960;
+    static constexpr int DEFAULT_HEIGHT = 540;
 
+    // Must match shaders/raytrace.frag
     static constexpr int MAX_SPHERES = 8;
-    static constexpr int MAX_BOXES = 4;
-    static constexpr int MAX_PLANES = 8;
+    static constexpr int MAX_BOXES = 64;
+    static constexpr int MAX_PLANES = 12;
 
     GpuRaytracer() = default;
     ~GpuRaytracer();
 
     bool init(SDL_Window* window);
+    void shutdown();
     void render(const Scene& scene, const Camera& cam);
     void present();
     void onResize(int windowW, int windowH);

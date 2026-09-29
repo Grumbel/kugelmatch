@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Raytraced Pong (KugelMatch). Classic 90s checkerboard + mirror-ball look.
 Camera is attached to the player paddle and looks down the playfield.
-CPU backend: 640×480. GPU backend: native window/drawable resolution.
+Both backends: window/drawable resolution (resizable).
 
 Two render backends:
 

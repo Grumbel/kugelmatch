@@ -131,7 +131,7 @@ void main() {
 
 } // namespace
 
-GpuRaytracer::~GpuRaytracer() {
+void GpuRaytracer::shutdown() {
     if (glctx_) {
         if (program_) {
             glDeleteProgram_(program_);
@@ -145,6 +145,11 @@ GpuRaytracer::~GpuRaytracer() {
         glctx_ = nullptr;
     }
     ready_ = false;
+    window_ = nullptr;
+}
+
+GpuRaytracer::~GpuRaytracer() {
+    shutdown();
 }
 
 unsigned GpuRaytracer::compileShader(unsigned type, const char* source) {

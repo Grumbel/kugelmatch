@@ -165,11 +165,12 @@ Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
     return col.clamp01();
 }
 
-void CpuRaytracer::renderRow(const Scene& scene, const Camera& cam, uint32_t* fb, int y) {
-    const float aspect = static_cast<float>(WIDTH) / static_cast<float>(HEIGHT);
-    for (int x = 0; x < WIDTH; ++x) {
-        float u = (2.0f * (x + 0.5f) / WIDTH - 1.0f) * aspect * cam.fovScale;
-        float v = (1.0f - 2.0f * (y + 0.5f) / HEIGHT) * cam.fovScale;
+void CpuRaytracer::renderRow(const Scene& scene, const Camera& cam, uint32_t* fb,
+                               int y, int width, int height) {
+    const float aspect = static_cast<float>(width) / static_cast<float>(height);
+    for (int x = 0; x < width; ++x) {
+        float u = (2.0f * (x + 0.5f) / width - 1.0f) * aspect * cam.fovScale;
+        float v = (1.0f - 2.0f * (y + 0.5f) / height) * cam.fovScale;
 
         Ray ray;
         ray.origin = cam.pos;
@@ -178,8 +179,8 @@ void CpuRaytracer::renderRow(const Scene& scene, const Camera& cam, uint32_t* fb
         Vec3 col = shade(ray, scene, 0);
 
         // Soft 90s-style vignette
-        float nx = (x + 0.5f) / WIDTH * 2.0f - 1.0f;
-        float ny = (y + 0.5f) / HEIGHT * 2.0f - 1.0f;
+        float nx = (x + 0.5f) / width * 2.0f - 1.0f;
+        float ny = (y + 0.5f) / height * 2.0f - 1.0f;
         float vig = 1.0f - 0.35f * (nx * nx + ny * ny);
         if (vig < 0.0f) vig = 0.0f;
         col *= vig;
@@ -190,23 +191,27 @@ void CpuRaytracer::renderRow(const Scene& scene, const Camera& cam, uint32_t* fb
         r = std::min(255, std::max(0, r));
         g = std::min(255, std::max(0, g));
         b = std::min(255, std::max(0, b));
-        fb[y * WIDTH + x] = (0xFFu << 24) | (static_cast<uint32_t>(r) << 16) |
+        fb[y * width + x] = (0xFFu << 24) | (static_cast<uint32_t>(r) << 16) |
                             (static_cast<uint32_t>(g) << 8) | static_cast<uint32_t>(b);
     }
 }
 
-void CpuRaytracer::render(const Scene& scene, const Camera& cam, uint32_t* framebuffer) {
+void CpuRaytracer::render(const Scene& scene, const Camera& cam, uint32_t* framebuffer,
+                          int width, int height) {
+    if (width <= 0 || height <= 0 || !framebuffer) {
+        return;
+    }
     nextRow_.store(0);
     workers_.clear();
     workers_.reserve(static_cast<size_t>(numThreads_));
 
-    auto worker = [this, &scene, &cam, framebuffer]() {
+    auto worker = [this, &scene, &cam, framebuffer, width, height]() {
         while (true) {
             int y = nextRow_.fetch_add(1);
-            if (y >= HEIGHT) {
+            if (y >= height) {
                 break;
             }
-            renderRow(scene, cam, framebuffer, y);
+            renderRow(scene, cam, framebuffer, y, width, height);
         }
     };
 

@@ -9,6 +9,35 @@
 #include <cstring>
 #include <ctime>
 
+namespace {
+
+// 7-segment masks for digits 0-9 (bits A F B G E C D — standard-ish)
+// Segment order: A(top) B(ur) C(lr) D(bot) E(ll) F(ul) G(mid)
+constexpr int kSegMask[10] = {
+    0b1110111, // 0 ABCDEF
+    0b0010010, // 1 BC
+    0b1011101, // 2 ABDEG
+    0b1011011, // 3 ABCDG
+    0b0111010, // 4 BCFG
+    0b1101011, // 5 ACDFG
+    0b1101111, // 6 ACDEFG
+    0b1010010, // 7 ABC
+    0b1111111, // 8
+    0b1111011, // 9 ABCDFG
+};
+
+void pushBox(Scene& scene, const Vec3& minb, const Vec3& maxb, const Vec3& color,
+             float reflectivity) {
+    Box b;
+    b.minb = minb;
+    b.maxb = maxb;
+    b.color = color;
+    b.reflectivity = reflectivity;
+    scene.boxes.push_back(b);
+}
+
+} // namespace
+
 Game::Game(RenderBackend backend) : backend_(backend) {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
 }
@@ -17,13 +46,7 @@ Game::~Game() {
     shutdown();
 }
 
-bool Game::init() {
-    Uint32 sdlFlags = SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO;
-    if (SDL_Init(sdlFlags) != 0) {
-        std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-        return false;
-    }
-
+bool Game::initWindowAndBackend() {
     Uint32 winFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
     if (backend_ == RenderBackend::Gpu) {
         winFlags |= SDL_WINDOW_OPENGL;
@@ -33,14 +56,16 @@ bool Game::init() {
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     }
 
-    window_ = SDL_CreateWindow(
-        "KugelMatch",
-        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        CpuRaytracer::WIDTH, CpuRaytracer::HEIGHT,
-        winFlags);
     if (!window_) {
-        std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
-        return false;
+        window_ = SDL_CreateWindow(
+            "KugelMatch",
+            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+            GpuRaytracer::DEFAULT_WIDTH, GpuRaytracer::DEFAULT_HEIGHT,
+            winFlags);
+        if (!window_) {
+            std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+            return false;
+        }
     }
 
     if (backend_ == RenderBackend::Gpu) {
@@ -58,20 +83,99 @@ bool Game::init() {
             std::fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
             return false;
         }
-        texture_ = SDL_CreateTexture(
-            sdlRenderer_,
-            SDL_PIXELFORMAT_ARGB8888,
-            SDL_TEXTUREACCESS_STREAMING,
-            CpuRaytracer::WIDTH, CpuRaytracer::HEIGHT);
-        if (!texture_) {
-            std::fprintf(stderr, "SDL_CreateTexture failed: %s\n", SDL_GetError());
+        int w = 0, h = 0;
+        SDL_GetWindowSize(window_, &w, &h);
+        if (!ensureCpuFramebuffer(std::max(1, w), std::max(1, h))) {
             return false;
         }
-        framebuffer_ = new uint32_t[CpuRaytracer::WIDTH * CpuRaytracer::HEIGHT];
-        std::memset(framebuffer_, 0, sizeof(uint32_t) * CpuRaytracer::WIDTH * CpuRaytracer::HEIGHT);
-        // Fixed internal resolution; letterbox/scale to window
-        SDL_RenderSetLogicalSize(sdlRenderer_, CpuRaytracer::WIDTH, CpuRaytracer::HEIGHT);
-        SDL_RenderSetIntegerScale(sdlRenderer_, SDL_FALSE);
+    }
+    return true;
+}
+
+void Game::shutdownBackend() {
+    if (backend_ == RenderBackend::Gpu) {
+        gpuRt_.shutdown();
+    } else {
+        if (texture_) {
+            SDL_DestroyTexture(texture_);
+            texture_ = nullptr;
+        }
+        if (sdlRenderer_) {
+            SDL_DestroyRenderer(sdlRenderer_);
+            sdlRenderer_ = nullptr;
+        }
+        delete[] framebuffer_;
+        framebuffer_ = nullptr;
+        fbW_ = fbH_ = 0;
+    }
+}
+
+bool Game::switchBackend(RenderBackend next) {
+    if (next == backend_) {
+        return true;
+    }
+    int w = 0, h = 0;
+    SDL_GetWindowSize(window_, &w, &h);
+    Uint32 flags = SDL_GetWindowFlags(window_);
+    bool fs = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
+
+    shutdownBackend();
+    if (window_) {
+        SDL_DestroyWindow(window_);
+        window_ = nullptr;
+    }
+
+    backend_ = next;
+    if (!initWindowAndBackend()) {
+        // Try to recover original
+        backend_ = (next == RenderBackend::Gpu) ? RenderBackend::Cpu : RenderBackend::Gpu;
+        if (!initWindowAndBackend()) {
+            return false;
+        }
+    }
+    if (fs) {
+        SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    } else if (w > 0 && h > 0) {
+        SDL_SetWindowSize(window_, w, h);
+    }
+    if (backend_ == RenderBackend::Gpu) {
+        gpuRt_.onResize(w, h);
+    }
+    return true;
+}
+
+bool Game::ensureCpuFramebuffer(int w, int h) {
+    if (w == fbW_ && h == fbH_ && framebuffer_ && texture_) {
+        return true;
+    }
+    if (texture_) {
+        SDL_DestroyTexture(texture_);
+        texture_ = nullptr;
+    }
+    delete[] framebuffer_;
+    framebuffer_ = nullptr;
+    fbW_ = w;
+    fbH_ = h;
+    framebuffer_ = new uint32_t[static_cast<size_t>(w) * static_cast<size_t>(h)];
+    std::memset(framebuffer_, 0, sizeof(uint32_t) * static_cast<size_t>(w) * static_cast<size_t>(h));
+    texture_ = SDL_CreateTexture(sdlRenderer_, SDL_PIXELFORMAT_ARGB8888,
+                                 SDL_TEXTUREACCESS_STREAMING, w, h);
+    if (!texture_) {
+        std::fprintf(stderr, "SDL_CreateTexture failed: %s\n", SDL_GetError());
+        return false;
+    }
+    return true;
+}
+
+bool Game::init() {
+    Uint32 sdlFlags = SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO;
+    if (SDL_Init(sdlFlags) != 0) {
+        std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    if (!initWindowAndBackend()) {
+        return false;
     }
 
     if (!audio_.init()) {
@@ -80,8 +184,11 @@ bool Game::init() {
 
     playerX_ = 0.0f;
     aiX_ = 0.0f;
-    // First serve after a short delay so the view settles
-    queueServe(false);
+    ballX_ = 0.0f;
+    ballZ_ = FIELD_L * 0.5f;
+    ballVX_ = ballVZ_ = 0.0f;
+    state_ = GameState::Attract;
+    attractTime_ = 0.0f;
 
     scene_.lightPos = Vec3(0.0f, 6.0f, 8.0f);
     scene_.lightColor = Vec3(1.2f, 1.15f, 1.05f);
@@ -94,18 +201,7 @@ bool Game::init() {
 
 void Game::shutdown() {
     audio_.shutdown();
-    if (framebuffer_) {
-        delete[] framebuffer_;
-        framebuffer_ = nullptr;
-    }
-    if (texture_) {
-        SDL_DestroyTexture(texture_);
-        texture_ = nullptr;
-    }
-    if (sdlRenderer_) {
-        SDL_DestroyRenderer(sdlRenderer_);
-        sdlRenderer_ = nullptr;
-    }
+    shutdownBackend();
     if (window_) {
         SDL_DestroyWindow(window_);
         window_ = nullptr;
@@ -132,10 +228,39 @@ void Game::queueServe(bool towardPlayer) {
     ballFlash_ = 0.0f;
 }
 
+void Game::startMatch() {
+    playerScore_ = 0;
+    aiScore_ = 0;
+    playerX_ = 0.0f;
+    aiX_ = 0.0f;
+    state_ = GameState::Intro;
+    introT_ = 0.0f;
+    attractTime_ = 0.0f;
+    queueServe(false);
+}
+
 void Game::handleInput(float dt) {
     const Uint8* keys = SDL_GetKeyboardState(nullptr);
-    float speed = 9.0f;
 
+    if (state_ == GameState::Attract) {
+        // movement keys ignored; wait for start
+        return;
+    }
+
+    if (state_ == GameState::Intro) {
+        return;
+    }
+
+    if (state_ == GameState::GameOver) {
+        return;
+    }
+
+    if (state_ == GameState::Pause) {
+        return;
+    }
+
+    // Play
+    float speed = 9.0f;
     if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A]) {
         playerX_ += speed * dt;
     }
@@ -145,13 +270,6 @@ void Game::handleInput(float dt) {
     float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
     playerX_ = std::max(-half, std::min(half, playerX_));
 
-    if (keys[SDL_SCANCODE_R]) {
-        playerScore_ = 0;
-        aiScore_ = 0;
-        queueServe(false);
-    }
-
-    // Continuous volume keys while held (with rate limiting via dt is fine)
     if (keys[SDL_SCANCODE_EQUALS] || keys[SDL_SCANCODE_KP_PLUS]) {
         audio_.setMasterVolume(audio_.masterVolume() + 0.5f * dt);
     }
@@ -190,11 +308,27 @@ void Game::update(float dt) {
         }
     }
 
-    if (paused_) {
+    if (state_ == GameState::Attract) {
+        attractTime_ += dt;
+        // Gentle demo: AI-ish ball bounce without scoring pressure
         return;
     }
 
-    // Serve countdown: ball held center, then launch
+    if (state_ == GameState::Intro) {
+        introT_ += dt / INTRO_DURATION;
+        if (introT_ >= 1.0f) {
+            introT_ = 1.0f;
+            state_ = GameState::Play;
+            audio_.playSoftThud(1.0f, 0.3f);
+        }
+        return;
+    }
+
+    if (state_ == GameState::Pause || state_ == GameState::GameOver) {
+        return;
+    }
+
+    // Play
     if (serveTimer_ > 0.0f) {
         serveTimer_ -= dt;
         if (serveTimer_ <= 0.0f) {
@@ -202,9 +336,7 @@ void Game::update(float dt) {
             resetBall(nextServeTowardPlayer_);
             audio_.playSoftThud(1.1f, 0.25f);
         }
-        // AI / player still move during serve pause
         float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
-        // Mild AI drift toward center while waiting
         if (aiX_ < -0.1f) {
             aiX_ += 4.0f * dt;
         } else if (aiX_ > 0.1f) {
@@ -293,13 +425,104 @@ void Game::update(float dt) {
         aiScore_++;
         audio_.playSoftThud(0.6f, 0.35f);
         triggerShake(0.06f);
-        queueServe(false);
+        if (aiScore_ >= pointsToWin_) {
+            state_ = GameState::GameOver;
+        } else {
+            queueServe(false);
+        }
     } else if (ballZ_ > FIELD_L + 1.0f) {
         playerScore_++;
         audio_.playSoftThud(0.7f, 0.35f);
         triggerShake(0.06f);
-        queueServe(true);
+        if (playerScore_ >= pointsToWin_) {
+            state_ = GameState::GameOver;
+        } else {
+            queueServe(true);
+        }
     }
+}
+
+void Game::addDigitBoxes(Scene& scene, float ox, float oy, float oz, int digit,
+                         const Vec3& color) const {
+    digit = std::max(0, std::min(9, digit));
+    const int mask = kSegMask[digit];
+    const float t = 0.07f;  // segment thickness
+    const float w = 0.38f;  // horizontal span
+    const float h = 0.55f;  // vertical half
+    const float d = 0.08f;  // depth into room
+
+    auto seg = [&](int bit, float x0, float y0, float x1, float y1) {
+        if ((mask & bit) == 0) {
+            return;
+        }
+        pushBox(scene,
+                Vec3(ox + x0, oy + y0, oz - d * 0.5f),
+                Vec3(ox + x1, oy + y1, oz + d * 0.5f),
+                color, 0.45f);
+    };
+
+    // A top, B upper-right, C lower-right, D bottom, E lower-left, F upper-left, G mid
+    seg(0b1000000, -w * 0.5f, h - t, w * 0.5f, h);           // A
+    seg(0b0000010, w * 0.5f - t, 0.0f, w * 0.5f, h - t);     // B
+    seg(0b0000100, w * 0.5f - t, -h, w * 0.5f, 0.0f);        // C
+    seg(0b0000001, -w * 0.5f, -h, w * 0.5f, -h + t);         // D
+    seg(0b0001000, -w * 0.5f, -h, -w * 0.5f + t, 0.0f);      // E
+    seg(0b0100000, -w * 0.5f, 0.0f, -w * 0.5f + t, h - t);   // F
+    seg(0b0010000, -w * 0.5f, -t * 0.5f, w * 0.5f, t * 0.5f); // G
+}
+
+void Game::addScoreboard(Scene& scene) const {
+    // Hanging board above midfield, facing down the long axis slightly
+    const float boardY = WALL_H - 0.55f;
+    const float boardZ = FIELD_L * 0.5f;
+    const float boardW = 2.8f;
+    const float boardH = 1.0f;
+    const float boardD = 0.12f;
+
+    // Panel (dark reflective)
+    pushBox(scene,
+            Vec3(-boardW * 0.5f, boardY - boardH * 0.5f, boardZ - boardD * 0.5f),
+            Vec3(boardW * 0.5f, boardY + boardH * 0.5f, boardZ + boardD * 0.5f),
+            Vec3(0.08f, 0.09f, 0.12f), 0.35f);
+
+    // Frame rim
+    const float rim = 0.06f;
+    pushBox(scene,
+            Vec3(-boardW * 0.5f - rim, boardY - boardH * 0.5f - rim, boardZ - boardD * 0.5f - 0.02f),
+            Vec3(boardW * 0.5f + rim, boardY - boardH * 0.5f, boardZ + boardD * 0.5f + 0.02f),
+            Vec3(0.55f, 0.5f, 0.35f), 0.5f);
+    pushBox(scene,
+            Vec3(-boardW * 0.5f - rim, boardY + boardH * 0.5f, boardZ - boardD * 0.5f - 0.02f),
+            Vec3(boardW * 0.5f + rim, boardY + boardH * 0.5f + rim, boardZ + boardD * 0.5f + 0.02f),
+            Vec3(0.55f, 0.5f, 0.35f), 0.5f);
+
+    // Suspension cables to ceiling
+    pushBox(scene, Vec3(-1.0f, boardY + boardH * 0.5f, boardZ - 0.03f),
+            Vec3(-0.95f, WALL_H, boardZ + 0.03f), Vec3(0.4f, 0.4f, 0.45f), 0.3f);
+    pushBox(scene, Vec3(0.95f, boardY + boardH * 0.5f, boardZ - 0.03f),
+            Vec3(1.0f, WALL_H, boardZ + 0.03f), Vec3(0.4f, 0.4f, 0.45f), 0.3f);
+
+    // Center divider bar
+    pushBox(scene, Vec3(-0.04f, boardY - 0.35f, boardZ + boardD * 0.5f),
+            Vec3(0.04f, boardY + 0.35f, boardZ + boardD * 0.5f + 0.04f),
+            Vec3(0.7f, 0.7f, 0.75f), 0.4f);
+
+    // Scores as 7-segment digits (player left, AI right) — front face of board
+    const float digitZ = boardZ + boardD * 0.5f + 0.06f;
+    const float digitY = boardY;
+    const Vec3 colPlayer(0.35f, 0.85f, 1.0f);
+    const Vec3 colAi(1.0f, 0.45f, 0.35f);
+
+    int pTens = (playerScore_ / 10) % 10;
+    int pOnes = playerScore_ % 10;
+    int aTens = (aiScore_ / 10) % 10;
+    int aOnes = aiScore_ % 10;
+
+    // Always show ones; show tens if >= 10 or always for classic look
+    addDigitBoxes(scene, -1.05f, digitY, digitZ, pTens, colPlayer);
+    addDigitBoxes(scene, -0.45f, digitY, digitZ, pOnes, colPlayer);
+    addDigitBoxes(scene, 0.45f, digitY, digitZ, aTens, colAi);
+    addDigitBoxes(scene, 1.05f, digitY, digitZ, aOnes, colAi);
 }
 
 void Game::buildScene() {
@@ -361,10 +584,11 @@ void Game::buildScene() {
     aiPad.reflectivity = 0.3f;
     scene_.boxes.push_back(aiPad);
 
+    addScoreboard(scene_);
+
     Sphere ball;
     ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
     ball.radius = BALL_R;
-    // Flash: brighten and slightly lower reflectivity so energy shows
     if (ballFlash_ > 0.0f) {
         float k = std::min(1.0f, ballFlash_ / 0.2f);
         ball.color = Vec3(1.0f, 1.0f, 1.0f) * (0.95f + 0.8f * k);
@@ -375,12 +599,10 @@ void Game::buildScene() {
     }
     scene_.spheres.push_back(ball);
 
-    // Decorative mirror orbs mounted on the walls (outside the play volume).
-    // GPU backend allows MAX_SPHERES=8 total (1 ball + 7 decos).
+    // Wall-mounted decos
     const float wallL = -FIELD_W * 0.5f;
     const float wallR = FIELD_W * 0.5f;
     const float wallB = FIELD_L + 0.5f;
-
     struct DecoSpec {
         Vec3 center;
         float radius;
@@ -388,15 +610,12 @@ void Game::buildScene() {
         float reflectivity;
     };
     const DecoSpec decos[] = {
-        // Left wall
         {Vec3(wallL + 0.28f, 1.6f, 3.5f), 0.35f, Vec3(0.9f, 0.55f, 0.2f), 0.65f},
         {Vec3(wallL + 0.22f, 2.2f, 8.0f), 0.28f, Vec3(0.85f, 0.3f, 0.45f), 0.7f},
         {Vec3(wallL + 0.32f, 1.1f, 13.0f), 0.4f, Vec3(0.4f, 0.75f, 0.95f), 0.6f},
-        // Right wall
         {Vec3(wallR - 0.28f, 1.8f, 5.0f), 0.32f, Vec3(0.3f, 0.7f, 0.9f), 0.65f},
         {Vec3(wallR - 0.25f, 2.4f, 10.5f), 0.3f, Vec3(0.95f, 0.85f, 0.35f), 0.55f},
         {Vec3(wallR - 0.35f, 1.3f, 14.2f), 0.38f, Vec3(0.7f, 0.4f, 0.85f), 0.7f},
-        // Back wall (above AI paddle)
         {Vec3(0.0f, 2.15f, wallB - 0.3f), 0.4f, Vec3(0.95f, 0.55f, 0.4f), 0.65f},
     };
     for (const auto& d : decos) {
@@ -408,28 +627,63 @@ void Game::buildScene() {
         scene_.spheres.push_back(s);
     }
 
-
     scene_.lightPos = Vec3(0.0f, WALL_H - 0.5f, FIELD_L * 0.45f);
 }
 
-void Game::toggleFullscreen() {
-    Uint32 flags = SDL_GetWindowFlags(window_);
-    if (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) {
-        SDL_SetWindowFullscreen(window_, 0);
-    } else {
-        // Borderless desktop fullscreen — plays nicer with multi-monitor
-        SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP);
+void Game::updateCamera(float dt) {
+    (void)dt;
+    const Vec3 up(0, 1, 0);
+
+    auto orbitCam = [&](float time) {
+        float ang = time * 0.35f;
+        float rad = 11.0f;
+        float height = 4.5f + 0.4f * std::sin(time * 0.5f);
+        Vec3 pos(std::sin(ang) * rad, height, FIELD_L * 0.5f + std::cos(ang) * rad * 0.85f);
+        Vec3 look(0.0f, 0.8f, FIELD_L * 0.5f);
+        camera_.set(pos, look, up, 55.0f);
+    };
+
+    auto paddleCam = [&](float sx, float sy) {
+        Vec3 camPos(playerX_ + sx, 1.1f + sy, -0.6f);
+        Vec3 lookAt(playerX_ * 0.3f + sx * 0.3f, 0.6f + sy * 0.2f, FIELD_L * 0.55f);
+        camera_.set(camPos, lookAt, up, 70.0f);
+    };
+
+    if (state_ == GameState::Attract || state_ == GameState::GameOver) {
+        orbitCam(attractTime_);
+        return;
     }
-    int w = 0, h = 0;
-    SDL_GetWindowSize(window_, &w, &h);
-    if (backend_ == RenderBackend::Gpu) {
-        gpuRt_.onResize(w, h);
+
+    if (state_ == GameState::Intro) {
+        // Smoothstep fly-in from orbit pose to paddle cam
+        float t = introT_;
+        t = t * t * (3.0f - 2.0f * t);
+        float ang = attractTime_ * 0.35f;
+        float rad = 11.0f;
+        Vec3 orbitPos(std::sin(ang) * rad, 4.5f, FIELD_L * 0.5f + std::cos(ang) * rad * 0.85f);
+        Vec3 orbitLook(0.0f, 0.8f, FIELD_L * 0.5f);
+        Vec3 padPos(playerX_, 1.1f, -0.6f);
+        Vec3 padLook(playerX_ * 0.3f, 0.6f, FIELD_L * 0.55f);
+        Vec3 pos = orbitPos * (1.0f - t) + padPos * t;
+        Vec3 look = orbitLook * (1.0f - t) + padLook * t;
+        float fov = 55.0f * (1.0f - t) + 70.0f * t;
+        camera_.set(pos, look, up, fov);
+        return;
     }
+
+    // Play / Pause: paddle cam + shake
+    float sx = shakeOffsetX_ * shake_;
+    float sy = shakeOffsetY_ * shake_;
+    if (shake_ > 0.001f) {
+        sx += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.35f;
+        sy += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.25f;
+    }
+    paddleCam(sx, sy);
 }
 
 void Game::presentCpu() {
     SDL_UpdateTexture(texture_, nullptr, framebuffer_,
-                      CpuRaytracer::WIDTH * static_cast<int>(sizeof(uint32_t)));
+                      fbW_ * static_cast<int>(sizeof(uint32_t)));
     SDL_RenderClear(sdlRenderer_);
     SDL_RenderCopy(sdlRenderer_, texture_, nullptr, nullptr);
     SDL_RenderPresent(sdlRenderer_);
@@ -438,11 +692,44 @@ void Game::presentCpu() {
 void Game::updateHud() {
     const char* mode = backend_ == RenderBackend::Gpu ? "GPU" : "CPU";
     const char* mute = audio_.muted() ? " MUTE" : "";
-    char buf[192];
+    const char* st = "PLAY";
+    switch (state_) {
+    case GameState::Attract:
+        st = "ATTRACT — SPACE start";
+        break;
+    case GameState::Intro:
+        st = "INTRO";
+        break;
+    case GameState::Pause:
+        st = "PAUSE";
+        break;
+    case GameState::GameOver:
+        st = playerScore_ >= pointsToWin_ ? "YOU WIN — SPACE" : "AI WINS — SPACE";
+        break;
+    default:
+        break;
+    }
+    char buf[256];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch [%s]%s  |  %d - %d  |  %.0f FPS  |  M mute  +/- vol  |  ESC",
-                  mode, mute, playerScore_, aiScore_, fpsSmooth_);
+                  "KugelMatch [%s]%s  |  %s  |  %.0f FPS  |  F8 backend  |  ESC",
+                  mode, mute, st, fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
+}
+
+void Game::toggleFullscreen() {
+    Uint32 flags = SDL_GetWindowFlags(window_);
+    if (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) {
+        SDL_SetWindowFullscreen(window_, 0);
+    } else {
+        SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    }
+    int w = 0, h = 0;
+    SDL_GetWindowSize(window_, &w, &h);
+    if (backend_ == RenderBackend::Gpu) {
+        gpuRt_.onResize(w, h);
+    } else {
+        ensureCpuFramebuffer(std::max(1, w), std::max(1, h));
+    }
 }
 
 void Game::run() {
@@ -458,18 +745,39 @@ void Game::run() {
             if (e.type == SDL_WINDOWEVENT &&
                 (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
                  e.window.event == SDL_WINDOWEVENT_RESIZED)) {
+                int w = e.window.data1;
+                int h = e.window.data2;
                 if (backend_ == RenderBackend::Gpu) {
-                    gpuRt_.onResize(e.window.data1, e.window.data2);
+                    gpuRt_.onResize(w, h);
+                } else {
+                    ensureCpuFramebuffer(std::max(1, w), std::max(1, h));
                 }
             }
             if (e.type == SDL_KEYDOWN) {
                 const SDL_Keymod mods = SDL_GetModState();
                 switch (e.key.keysym.sym) {
                 case SDLK_ESCAPE:
-                    running_ = false;
+                    if (state_ == GameState::Play) {
+                        state_ = GameState::Pause;
+                    } else if (state_ == GameState::Pause) {
+                        state_ = GameState::Attract;
+                        attractTime_ = 0.0f;
+                    } else if (state_ == GameState::Attract) {
+                        running_ = false;
+                    } else if (state_ == GameState::GameOver) {
+                        state_ = GameState::Attract;
+                        attractTime_ = 0.0f;
+                    } else if (state_ == GameState::Intro) {
+                        state_ = GameState::Play;
+                        introT_ = 1.0f;
+                    }
                     break;
                 case SDLK_p:
-                    paused_ = !paused_;
+                    if (state_ == GameState::Play) {
+                        state_ = GameState::Pause;
+                    } else if (state_ == GameState::Pause) {
+                        state_ = GameState::Play;
+                    }
                     break;
                 case SDLK_m:
                     audio_.toggleMute();
@@ -477,10 +785,34 @@ void Game::run() {
                 case SDLK_F11:
                     toggleFullscreen();
                     break;
+                case SDLK_F8:
+                    if (!switchBackend(backend_ == RenderBackend::Gpu ? RenderBackend::Cpu
+                                                                      : RenderBackend::Gpu)) {
+                        std::fprintf(stderr, "Backend switch failed.\n");
+                    }
+                    break;
                 case SDLK_RETURN:
                 case SDLK_KP_ENTER:
                     if (mods & KMOD_ALT) {
                         toggleFullscreen();
+                    } else if (state_ == GameState::Attract || state_ == GameState::GameOver) {
+                        startMatch();
+                    } else if (state_ == GameState::Intro) {
+                        state_ = GameState::Play;
+                        introT_ = 1.0f;
+                    }
+                    break;
+                case SDLK_SPACE:
+                    if (state_ == GameState::Attract || state_ == GameState::GameOver) {
+                        startMatch();
+                    } else if (state_ == GameState::Intro) {
+                        state_ = GameState::Play;
+                        introT_ = 1.0f;
+                    }
+                    break;
+                case SDLK_r:
+                    if (state_ == GameState::Play || state_ == GameState::Pause) {
+                        startMatch();
                     }
                     break;
                 default:
@@ -503,23 +835,21 @@ void Game::run() {
         handleInput(dt);
         update(dt);
         buildScene();
-
-        float sx = shakeOffsetX_ * shake_;
-        float sy = shakeOffsetY_ * shake_;
-        if (shake_ > 0.001f) {
-            sx += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.35f;
-            sy += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.25f;
-        }
-
-        Vec3 camPos(playerX_ + sx, 1.1f + sy, -0.6f);
-        Vec3 lookAt(playerX_ * 0.3f + sx * 0.3f, 0.6f + sy * 0.2f, FIELD_L * 0.55f);
-        camera_.set(camPos, lookAt, Vec3(0, 1, 0), 70.0f);
+        updateCamera(dt);
 
         if (backend_ == RenderBackend::Gpu) {
             gpuRt_.render(scene_, camera_);
             gpuRt_.present();
         } else {
-            cpuRt_.render(scene_, camera_, framebuffer_);
+            int w = 0, h = 0;
+            SDL_GetWindowSize(window_, &w, &h);
+            w = std::max(1, w);
+            h = std::max(1, h);
+            if (!ensureCpuFramebuffer(w, h)) {
+                running_ = false;
+                break;
+            }
+            cpuRt_.render(scene_, camera_, framebuffer_, w, h);
             presentCpu();
         }
         updateHud();

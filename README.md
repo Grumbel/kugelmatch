@@ -14,19 +14,21 @@ Two backends, same scene and rules:
 | `--cpu` (default) | Multi-threaded software raytracer (SDL2 texture) |
 | `--gpu` | Full raytracing in an OpenGL **fragment shader** (fullscreen triangle, **no scene meshes**) |
 
-Shared look: checkerboard floor + walls, reflective **mirror ball**, camera locked to the player paddle looking down the playfield. CPU: **640×480**; GPU: full window resolution.
+Shared look: checkerboard floor + walls, reflective **mirror ball**, camera locked to the player paddle looking down the playfield. Both backends render at **window resolution** (resizable).
 
 ## Controls
 
 | Key | Action |
 |-----|--------|
-| ← / → or A / D | Move paddle |
-| R | Reset scores + ball |
-| P | Pause |
+| Space / Enter | Start match (from attract / game over); skip intro |
+| ← / → or A / D | Move paddle (during play) |
+| P | Pause / resume |
+| R | Restart match |
+| F8 | Switch CPU ↔ GPU at runtime |
 | M | Mute / unmute |
-| + / − | Volume up / down |
-| F11 or Alt+Enter | Toggle fullscreen |
-| ESC | Quit |
+| + / − | Volume |
+| F11 or Alt+Enter | Fullscreen |
+| ESC | Pause → attract → quit |
 
 ## Build with Nix
 
@@ -69,7 +71,10 @@ cmake --build . -j
 - Short **camera shake** on collisions (stronger for player paddle hits)
 - Mute (M), master volume (+/−), serve delay after points, ball impact flash
 - Soft vignette on both backends; FPS in window title
-- Resizable window; **CPU** stays 640×480 (letterboxed), **GPU** raytraces at native drawable resolution
+- Resizable window; CPU and GPU both raytrace at window/drawable size
+- **3D scoreboard** hanging from the ceiling (7-segment digits as reflective boxes)
+- Attract-mode orbit camera + fly-in intro before play; first to 11 points
+- Runtime backend switch (F8)
 - Desktop fullscreen via F11 / Alt+Enter
 
 License: GPLv3+

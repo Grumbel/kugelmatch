@@ -10,13 +10,12 @@
 
 class CpuRaytracer {
 public:
-    static constexpr int WIDTH = 640;
-    static constexpr int HEIGHT = 480;
-
     CpuRaytracer();
     ~CpuRaytracer();
 
-    void render(const Scene& scene, const Camera& cam, uint32_t* framebuffer);
+    // Renders into framebuffer of size width*height (ARGB8888).
+    void render(const Scene& scene, const Camera& cam, uint32_t* framebuffer,
+                int width, int height);
 
 private:
     int numThreads_ = 1;
@@ -25,5 +24,6 @@ private:
 
     Hit intersect(const Ray& ray, const Scene& scene) const;
     Vec3 shade(const Ray& ray, const Scene& scene, int depth) const;
-    void renderRow(const Scene& scene, const Camera& cam, uint32_t* fb, int y);
+    void renderRow(const Scene& scene, const Camera& cam, uint32_t* fb,
+                   int y, int width, int height);
 };
