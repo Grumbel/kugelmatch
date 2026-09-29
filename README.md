@@ -18,21 +18,39 @@ Shared look: checkerboard floor + walls, reflective **mirror ball**, camera lock
 
 ## Controls
 
+### Match flow
 | Key | Action |
 |-----|--------|
-| Space / Enter | Start match (from attract / game over); skip intro |
-| ← / → or A / D | Move paddle (during play) |
+| Space / Enter | Start match; skip intro; **skip goal replay**; rematch after game over |
 | P | Pause / resume |
 | R | Restart match |
-| F8 | Switch CPU ↔ GPU at runtime |
-| M | Mute / unmute |
-| + / − | Volume |
-| F11 or Alt+Enter | Fullscreen |
 | ESC | Pause → attract → quit |
-| 1 | Cycle difficulty (Easy/Normal/Hard) |
-| 2 | Cycle points to win (7/11/15/21) |
-| 3 | Cycle camera (Paddle/High/Sideline) |
-| 4 | Toggle 1P / 2P |
+| F8 | Switch CPU ↔ GPU |
+| F9 | Toggle slow-mo goal replay |
+| F11 / Alt+Enter | Fullscreen |
+
+### Play
+| Key | Action |
+|-----|--------|
+| A / D | Move player paddle (also arrows in 1P) |
+| Arrows | Player 2 paddle in 2P mode |
+
+### Options (in-world + keys)
+| Key | Action |
+|-----|--------|
+| 1 | Difficulty Easy → Normal → Hard |
+| 2 | Points to win 7 / 11 / 15 / 21 |
+| 3 | Camera Paddle / High / Sideline |
+| 4 | 1P / 2P |
+| 5 | Reflection bounces 0–3 |
+| 6 | Vsync on/off |
+| 7 | Soft-shadow samples 1 / 2 / 4 / 8 |
+| 8 / 9 or [ ] | Hold: exposure down / up |
+| 0 | Theme Classic / Neon / Ice / Ember |
+| M | Mute |
+| + / − | Volume |
+
+Settings persist in `~/.config/kugelmatch/config.cfg`.
 
 ## Build with Nix
 

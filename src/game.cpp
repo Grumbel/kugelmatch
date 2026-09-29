@@ -1091,12 +1091,17 @@ void Game::addOptionsGeometry(Scene& scene) const {
 void Game::buildScene() {
     scene_.clear();
 
+    Vec3 colP, colF;
+    paddleColors(colP, colF);
+    Vec3 themeMix = (colP + colF) * 0.5f;
+
+    // Checker floor shifts with theme (light tile blended toward theme, dark stays cool)
     Plane floor;
     floor.point = Vec3(0, 0, 0);
     floor.normal = Vec3(0, 1, 0);
     floor.checker = true;
-    floor.colorA = Vec3(0.85f, 0.85f, 0.82f);
-    floor.colorB = Vec3(0.15f, 0.15f, 0.18f);
+    floor.colorA = Vec3(0.82f, 0.82f, 0.80f) * 0.55f + themeMix * 0.45f;
+    floor.colorB = Vec3(0.12f, 0.12f, 0.14f) * 0.7f + themeMix * 0.15f;
     floor.scale = 1.2f;
     floor.reflectivity = 0.15f;
     scene_.planes.push_back(floor);
@@ -1104,7 +1109,7 @@ void Game::buildScene() {
     Plane ceil;
     ceil.point = Vec3(0, WALL_H, 0);
     ceil.normal = Vec3(0, -1, 0);
-    ceil.colorA = Vec3(0.08f, 0.08f, 0.1f);
+    ceil.colorA = Vec3(0.08f, 0.08f, 0.1f) * 0.85f + themeMix * 0.08f;
     ceil.reflectivity = 0.05f;
     scene_.planes.push_back(ceil);
 
@@ -1112,8 +1117,8 @@ void Game::buildScene() {
     back.point = Vec3(0, 0, FIELD_L + 0.5f);
     back.normal = Vec3(0, 0, -1);
     back.checker = true;
-    back.colorA = Vec3(0.4f, 0.2f, 0.25f);
-    back.colorB = Vec3(0.25f, 0.12f, 0.15f);
+    back.colorA = Vec3(0.35f, 0.18f, 0.22f) * 0.5f + colF * 0.5f;
+    back.colorB = Vec3(0.2f, 0.1f, 0.12f) * 0.55f + colF * 0.25f;
     back.scale = 0.8f;
     back.reflectivity = 0.1f;
     scene_.planes.push_back(back);
@@ -1122,8 +1127,8 @@ void Game::buildScene() {
     left.point = Vec3(-FIELD_W * 0.5f - 0.1f, 0, 0);
     left.normal = Vec3(1, 0, 0);
     left.checker = true;
-    left.colorA = Vec3(0.2f, 0.3f, 0.45f);
-    left.colorB = Vec3(0.12f, 0.18f, 0.28f);
+    left.colorA = Vec3(0.18f, 0.28f, 0.4f) * 0.45f + colP * 0.55f;
+    left.colorB = Vec3(0.1f, 0.15f, 0.22f) * 0.55f + colP * 0.2f;
     left.scale = 0.9f;
     left.reflectivity = 0.08f;
     scene_.planes.push_back(left);
@@ -1131,9 +1136,11 @@ void Game::buildScene() {
     Plane right = left;
     right.point = Vec3(FIELD_W * 0.5f + 0.1f, 0, 0);
     right.normal = Vec3(-1, 0, 0);
+    right.colorA = Vec3(0.18f, 0.28f, 0.4f) * 0.45f + colF * 0.55f;
+    right.colorB = Vec3(0.1f, 0.15f, 0.22f) * 0.55f + colF * 0.2f;
     scene_.planes.push_back(right);
 
-    Vec3 colP, colF;
+    // colP / colF already set for theme floor/walls above
     paddleColors(colP, colF);
 
     Box playerPad;
@@ -1176,9 +1183,7 @@ void Game::buildScene() {
     const float wallL = -FIELD_W * 0.5f;
     const float wallR = FIELD_W * 0.5f;
     const float wallB = FIELD_L + 0.5f;
-    Vec3 themeA, themeB;
-    paddleColors(themeA, themeB);
-    Vec3 themeMix = (themeA + themeB) * 0.5f;
+    // themeMix / colP / colF already computed above
     struct DecoSpec {
         Vec3 center;
         float radius;
@@ -1196,7 +1201,7 @@ void Game::buildScene() {
     };
     for (auto& d : decos) {
         // Blend base deco color toward theme palette
-        d.color = d.color * 0.35f + themeMix * 0.4f + themeA * 0.25f;
+        d.color = d.color * 0.35f + themeMix * 0.4f + colP * 0.25f;
         Sphere s;
         s.center = d.center;
         s.radius = d.radius;
@@ -1492,6 +1497,10 @@ void Game::run() {
                     } else if (state_ == GameState::Intro) {
                         state_ = GameState::Play;
                         introT_ = 1.0f;
+                    } else if (state_ == GameState::Play && replayTimer_ > 0.0f) {
+                        replayTimer_ = 0.0f;
+                        queueServe(nextServeTowardPlayer_);
+                        audio_.playSoftThud(1.0f, 0.2f);
                     }
                     break;
                 case SDLK_r:

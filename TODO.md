@@ -9,28 +9,27 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `d2ee777` — theme decos, hold exposure, slow-mo
+**Tip:** (pending) — theme floor/walls, skip replay, controls docs
 
 ## Done
 
-- [x] Themes, exposure keys, goal replay
-- [x] Wall decos tint with active theme
-- [x] Hold-to-ramp exposure (8/9/[ ]); persist on key-up
-- [x] Slow-mo goal replay (default on; **F9** toggles; config `slowmo_replay`)
+- [x] Theme-tinted wall decos, hold exposure, slow-mo replay
+- [x] Checker floor + side/back walls shift with theme
+- [x] **Space** skips goal replay → immediate serve
+- [x] README controls rewritten (full key map)
 
 ## Open / follow-ups
 
-- [ ] Checker floor color shift per theme
-- [ ] Replay skip with Space
-- [ ] Package/release notes for keys
+- [ ] Attract-mode input legend as voxel glyphs (optional)
+- [ ] CI / packaging beyond Nix flake
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-018.1-themes-exposure-replay-a7bcc21.bundle`
-Next: `kugelmatch-019.1-theme-decos-slowmo-a7bcc21.bundle`
+Previous: `kugelmatch-019.1-theme-decos-slowmo-a7bcc21.bundle`
+Next: `kugelmatch-020.1-theme-floor-skip-replay-a7bcc21.bundle`
 
 ## Notes
 
-- Exposure no longer writes config every frame; KEYUP persists
-- Slow-mo slows animTime during replay and widens orbit
+- Theme drives paddles, lights, decos, floor, and walls
+- Space during replay ends it and calls queueServe
