@@ -22,9 +22,16 @@ enum class GameState {
 enum class Difficulty { Easy, Normal, Hard };
 
 enum class CameraMode {
-    Paddle,   // classic: on player paddle
-    High,     // higher follow cam
-    Sideline  // side of field looking in
+    Paddle,
+    High,
+    Sideline
+};
+
+enum class Theme {
+    Classic,
+    Neon,
+    Ice,
+    Ember
 };
 
 class Game {
@@ -47,6 +54,9 @@ private:
     int targetFps_ = 60;
     int shadowSamples_ = 4;
     float exposure_ = 1.0f;
+    Theme theme_ = Theme::Classic;
+    float replayTimer_ = 0.0f;
+    bool replayTowardPlayer_ = false; // ball exited near player end
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* sdlRenderer_ = nullptr;
@@ -127,6 +137,9 @@ private:
     void addMatchPointBanner(Scene& scene) const;
     void addGameOverBanner(Scene& scene) const;
     void cycleShadowSamples();
+    void cycleTheme();
+    void adjustExposure(float delta);
+    void paddleColors(Vec3& player, Vec3& farPad) const;
     void applyVsync();
     bool isMatchPoint() const;
     void applyConfig(const AppConfig& cfg);

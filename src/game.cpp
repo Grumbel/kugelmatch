@@ -335,6 +335,40 @@ void Game::cycleShadowSamples() {
     persistConfig();
 }
 
+void Game::cycleTheme() {
+    theme_ = static_cast<Theme>((static_cast<int>(theme_) + 1) % 4);
+    audio_.playSoftThud(0.9f + static_cast<float>(theme_) * 0.08f, 0.22f);
+    persistConfig();
+}
+
+void Game::adjustExposure(float delta) {
+    exposure_ += delta;
+    if (exposure_ < 0.1f) exposure_ = 0.1f;
+    if (exposure_ > 2.5f) exposure_ = 2.5f;
+    persistConfig();
+}
+
+void Game::paddleColors(Vec3& player, Vec3& farPad) const {
+    switch (theme_) {
+    case Theme::Neon:
+        player = Vec3(0.3f, 1.0f, 0.85f);
+        farPad = Vec3(1.0f, 0.25f, 0.9f);
+        break;
+    case Theme::Ice:
+        player = Vec3(0.75f, 0.9f, 1.0f);
+        farPad = Vec3(0.55f, 0.7f, 0.95f);
+        break;
+    case Theme::Ember:
+        player = Vec3(1.0f, 0.7f, 0.25f);
+        farPad = Vec3(0.95f, 0.25f, 0.15f);
+        break;
+    default: // Classic
+        player = Vec3(0.7f, 0.75f, 0.9f);
+        farPad = Vec3(0.9f, 0.4f, 0.35f);
+        break;
+    }
+}
+
 AppConfig Game::currentConfig() const {
     AppConfig c;
     c.useGpu = (backend_ == RenderBackend::Gpu);
@@ -349,6 +383,7 @@ AppConfig Game::currentConfig() const {
     c.targetFps = targetFps_;
     c.shadowSamples = shadowSamples_;
     c.exposure = exposure_;
+    c.theme = static_cast<int>(theme_);
     if (window_) {
         Uint32 flags = SDL_GetWindowFlags(window_);
         c.fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
@@ -373,6 +408,7 @@ void Game::applyConfig(const AppConfig& cfg) {
     exposure_ = cfg.exposure;
     if (exposure_ < 0.1f) exposure_ = 0.1f;
     if (exposure_ > 3.0f) exposure_ = 3.0f;
+    theme_ = static_cast<Theme>(std::max(0, std::min(3, cfg.theme)));
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
 }
@@ -461,6 +497,7 @@ void Game::startMatch() {
     state_ = GameState::Intro;
     introT_ = 0.0f;
     attractTime_ = 0.0f;
+    replayTimer_ = 0.0f;
     queueServe(false);
 }
 
@@ -566,6 +603,16 @@ void Game::update(float dt) {
     }
 
     if (state_ == GameState::Pause) {
+        return;
+    }
+
+    // Post-goal replay beat (frozen ball, cinematic cam handled in updateCamera)
+    if (state_ == GameState::Play && replayTimer_ > 0.0f) {
+        replayTimer_ -= dt;
+        if (replayTimer_ <= 0.0f) {
+            replayTimer_ = 0.0f;
+            queueServe(nextServeTowardPlayer_);
+        }
         return;
     }
 
@@ -677,25 +724,36 @@ void Game::update(float dt) {
         aiScore_++;
         audio_.playSoftThud(0.6f, 0.35f);
         triggerShake(0.06f);
+        ballVX_ = 0.0f;
+        ballVZ_ = 0.0f;
+        ballZ_ = -0.5f;
         if (aiScore_ >= pointsToWin_) {
             state_ = GameState::GameOver;
             gameOverTime_ = 0.0f;
             playerWon_ = false;
             audio_.playClank(0.5f, 0.6f);
         } else {
-            queueServe(false);
+            replayTimer_ = 1.35f;
+            replayTowardPlayer_ = true; // ball left near player; serve toward far? 
+            // nextServeTowardPlayer_: false means ball goes toward AI (away from player)
+            nextServeTowardPlayer_ = false;
         }
     } else if (ballZ_ > FIELD_L + 1.0f) {
         playerScore_++;
         audio_.playSoftThud(0.7f, 0.35f);
         triggerShake(0.06f);
+        ballVX_ = 0.0f;
+        ballVZ_ = 0.0f;
+        ballZ_ = FIELD_L + 0.5f;
         if (playerScore_ >= pointsToWin_) {
             state_ = GameState::GameOver;
             gameOverTime_ = 0.0f;
             playerWon_ = true;
             audio_.playClank(1.4f, 0.7f);
         } else {
-            queueServe(true);
+            replayTimer_ = 1.35f;
+            replayTowardPlayer_ = false; // exited near AI end
+            nextServeTowardPlayer_ = true;
         }
     }
 }
@@ -1063,17 +1121,20 @@ void Game::buildScene() {
     right.normal = Vec3(-1, 0, 0);
     scene_.planes.push_back(right);
 
+    Vec3 colP, colF;
+    paddleColors(colP, colF);
+
     Box playerPad;
     playerPad.minb = Vec3(playerX_ - PADDLE_W * 0.5f, 0.05f, 0.25f);
     playerPad.maxb = Vec3(playerX_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, 0.25f + PADDLE_D);
-    playerPad.color = Vec3(0.7f, 0.75f, 0.9f);
+    playerPad.color = colP;
     playerPad.reflectivity = 0.35f;
     scene_.boxes.push_back(playerPad);
 
     Box aiPad;
     aiPad.minb = Vec3(player2X_ - PADDLE_W * 0.5f, 0.05f, FIELD_L - 0.25f - PADDLE_D);
     aiPad.maxb = Vec3(player2X_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, FIELD_L - 0.25f);
-    aiPad.color = Vec3(0.9f, 0.4f, 0.35f);
+    aiPad.color = colF;
     aiPad.reflectivity = 0.3f;
     scene_.boxes.push_back(aiPad);
 
@@ -1150,8 +1211,24 @@ void Game::buildScene() {
         }
         scene_.ambient = Vec3(0.1f, 0.1f, 0.12f);
     } else {
-        scene_.lightColor = Vec3(1.2f, 1.15f, 1.05f);
-        scene_.ambient = Vec3(0.12f, 0.12f, 0.15f);
+        switch (theme_) {
+        case Theme::Neon:
+            scene_.lightColor = Vec3(1.05f, 1.2f, 1.25f);
+            scene_.ambient = Vec3(0.08f, 0.12f, 0.16f);
+            break;
+        case Theme::Ice:
+            scene_.lightColor = Vec3(1.15f, 1.2f, 1.35f);
+            scene_.ambient = Vec3(0.12f, 0.14f, 0.18f);
+            break;
+        case Theme::Ember:
+            scene_.lightColor = Vec3(1.35f, 1.05f, 0.85f);
+            scene_.ambient = Vec3(0.14f, 0.1f, 0.08f);
+            break;
+        default:
+            scene_.lightColor = Vec3(1.2f, 1.15f, 1.05f);
+            scene_.ambient = Vec3(0.12f, 0.12f, 0.15f);
+            break;
+        }
     }
 }
 
@@ -1205,6 +1282,18 @@ void Game::updateCamera(float dt) {
         Vec3 look = orbitLook * (1.0f - t) + padLook * t;
         float fov = 55.0f * (1.0f - t) + 70.0f * t;
         camera_.set(pos, look, up, fov);
+        return;
+    }
+
+    if (state_ == GameState::Play && replayTimer_ > 0.0f) {
+        // Brief orbit toward the end that was scored on
+        float t = 1.0f - (replayTimer_ / 1.35f);
+        t = t * t * (3.0f - 2.0f * t);
+        float goalZ = replayTowardPlayer_ ? 0.5f : FIELD_L - 0.5f;
+        float ang = animTime_ * 0.8f;
+        Vec3 pos(std::sin(ang) * 4.5f, 2.8f + 0.4f * t, goalZ + (replayTowardPlayer_ ? 3.5f : -3.5f));
+        Vec3 look(ballX_ * 0.3f, BALL_R + 0.2f, ballZ_);
+        camera_.set(pos, look, up, 55.0f);
         return;
     }
 
@@ -1271,10 +1360,10 @@ void Game::updateHud() {
     }
     char buf[320];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | refl%d sh%d %s | %.0fFPS | "
-                  "1-5 opts 6 vsync 7 shadows | F8 | ESC",
+                  "KugelMatch [%s]%s | %s | %s %s | to%d | %s | refl%d sh%d exp%.2f %s | %.0fFPS",
                   mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
-                  maxBounces_, shadowSamples_, vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
+                  maxBounces_, shadowSamples_, exposure_,
+                  vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
 }
 
@@ -1396,6 +1485,19 @@ void Game::run() {
                     break;
                 case SDLK_7:
                     cycleShadowSamples();
+                    break;
+                case SDLK_8:
+                case SDLK_LEFTBRACKET:
+                    adjustExposure(-0.08f);
+                    audio_.playSoftThud(0.7f, 0.15f);
+                    break;
+                case SDLK_9:
+                case SDLK_RIGHTBRACKET:
+                    adjustExposure(0.08f);
+                    audio_.playSoftThud(1.1f, 0.15f);
+                    break;
+                case SDLK_0:
+                    cycleTheme();
                     break;
                 case SDLK_6:
                     vsync_ = !vsync_;

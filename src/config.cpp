@@ -106,6 +106,8 @@ bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {
             cfg.shadowSamples = std::atoi(val.c_str());
         } else if (key == "exposure") {
             cfg.exposure = std::strtof(val.c_str(), nullptr);
+        } else if (key == "theme") {
+            cfg.theme = std::atoi(val.c_str());
         }
     }
     if (cfg.maxBounces < 0) {
@@ -150,5 +152,6 @@ bool saveConfig(const AppConfig& cfg, std::string* savedTo) {
     out << "target_fps=" << cfg.targetFps << "\n";
     out << "shadow_samples=" << cfg.shadowSamples << "\n";
     out << "exposure=" << cfg.exposure << "\n";
+    out << "theme=" << cfg.theme << "\n";
     return true;
 }
