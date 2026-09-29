@@ -159,6 +159,7 @@ private:
     void cycleQuality();
     void applyQualityPreset();
     void syncGpuScale();
+    const char* qualityLabel() const;
     void adjustExposure(float delta);
     void paddleColors(Vec3& player, Vec3& farPad) const;
     void applyVsync();

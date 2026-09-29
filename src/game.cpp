@@ -388,6 +388,33 @@ void Game::syncGpuScale() {
     gpuRt_.setMaxResolution(cpuMaxWidth_, cpuMaxHeight_);
 }
 
+const char* Game::qualityLabel() const {
+    // Reflect actual RT settings; show CUST when keys 5/7 diverged from the preset.
+    auto matches = [&](int bounces, int shadows, float scale) {
+        return maxBounces_ == bounces && shadowSamples_ == shadows
+            && std::fabs(cpuScale_ - scale) < 0.02f;
+    };
+    switch (quality_) {
+    case Quality::Low:
+        if (matches(0, 1, 0.5f)) return "LOW";
+        break;
+    case Quality::Medium:
+        if (matches(1, 2, 0.75f)) return "MED";
+        break;
+    case Quality::High:
+        if (matches(2, 4, 1.0f)) return "HIGH";
+        break;
+    case Quality::Ultra:
+        if (matches(3, 8, 1.25f)) return "ULTRA";
+        break;
+    }
+    if (matches(0, 1, 0.5f)) return "LOW";
+    if (matches(1, 2, 0.75f)) return "MED";
+    if (matches(2, 4, 1.0f)) return "HIGH";
+    if (matches(3, 8, 1.25f)) return "ULTRA";
+    return "CUST";
+}
+
 void Game::adjustExposure(float delta) {
     exposure_ += delta;
     if (exposure_ < 0.1f) exposure_ = 0.1f;
@@ -682,6 +709,7 @@ void Game::update(float dt) {
     }
 
     if (state_ == GameState::Intro) {
+        attractTime_ += dt; // keep orbit angle advancing for fly-in continuity
         introT_ += dt / INTRO_DURATION;
         if (introT_ >= 1.0f) {
             introT_ = 1.0f;
@@ -748,73 +776,94 @@ void Game::update(float dt) {
         player2X_ = std::max(-half, std::min(half, player2X_));
     }
 
-    ballX_ += ballVX_ * dt;
-    ballZ_ += ballVZ_ * dt;
-
-    // Soft ghost trail (raytraced spheres)
-    for (int i = TRAIL_LEN - 1; i > 0; --i) {
-        trailX_[i] = trailX_[i - 1];
-        trailZ_[i] = trailZ_[i - 1];
-    }
-    trailX_[0] = ballX_;
-    trailZ_[0] = ballZ_;
-
-    float wall = FIELD_W * 0.5f - BALL_R;
-    if (ballX_ < -wall) {
-        ballX_ = -wall;
-        ballVX_ = -ballVX_;
-        float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
-        audio_.playClank(0.95f + std::min(0.25f, speed * 0.02f), 0.45f);
-        triggerShake(0.04f);
-        ballFlash_ = 0.12f;
-    } else if (ballX_ > wall) {
-        ballX_ = wall;
-        ballVX_ = -ballVX_;
-        float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
-        audio_.playClank(0.95f + std::min(0.25f, speed * 0.02f), 0.45f);
-        triggerShake(0.04f);
-        ballFlash_ = 0.12f;
-    }
-
-    float pz = 0.4f;
-    if (ballZ_ - BALL_R < pz + PADDLE_D * 0.5f && ballZ_ + BALL_R > pz - PADDLE_D * 0.5f &&
-        ballVZ_ < 0.0f) {
-        if (ballX_ + BALL_R > playerX_ - PADDLE_W * 0.5f &&
-            ballX_ - BALL_R < playerX_ + PADDLE_W * 0.5f) {
-            ballZ_ = pz + PADDLE_D * 0.5f + BALL_R;
-            ballVZ_ = -ballVZ_ * 1.05f;
-            float offset = (ballX_ - playerX_) / (PADDLE_W * 0.5f);
-            ballVX_ += offset * 2.5f;
-            float sp = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
-            if (sp > 14.0f) {
-                ballVX_ *= 14.0f / sp;
-                ballVZ_ *= 14.0f / sp;
+    // Substep when the ball would travel more than ~half a paddle depth in one frame
+    // (avoids tunneling through paddles at high speed or after a long frame hitch).
+    {
+        float spd = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
+        const float maxStepDist = PADDLE_D * 0.45f;
+        int steps = 1;
+        if (spd * dt > maxStepDist && spd > 1e-4f) {
+            steps = static_cast<int>(std::ceil(spd * dt / maxStepDist));
+            if (steps > 8) {
+                steps = 8;
             }
-            float pitch = 0.85f + std::min(0.4f, sp * 0.03f) + std::abs(offset) * 0.15f;
-            audio_.playClank(pitch, 0.75f);
-            triggerShake(0.12f + std::min(0.08f, sp * 0.008f));
-            ballFlash_ = 0.2f;
         }
-    }
+        const float sdt = dt / static_cast<float>(steps);
+        bool scored = false;
+        for (int step = 0; step < steps && !scored; ++step) {
+            ballX_ += ballVX_ * sdt;
+            ballZ_ += ballVZ_ * sdt;
 
-    float az = FIELD_L - 0.4f;
-    if (ballZ_ + BALL_R > az - PADDLE_D * 0.5f && ballZ_ - BALL_R < az + PADDLE_D * 0.5f &&
-        ballVZ_ > 0.0f) {
-        if (ballX_ + BALL_R > player2X_ - PADDLE_W * 0.5f &&
-            ballX_ - BALL_R < player2X_ + PADDLE_W * 0.5f) {
-            ballZ_ = az - PADDLE_D * 0.5f - BALL_R;
-            ballVZ_ = -ballVZ_ * 1.05f;
-            float offset = (ballX_ - player2X_) / (PADDLE_W * 0.5f);
-            ballVX_ += offset * 2.5f;
-            float sp = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
-            if (sp > 14.0f) {
-                ballVX_ *= 14.0f / sp;
-                ballVZ_ *= 14.0f / sp;
+            float wall = FIELD_W * 0.5f - BALL_R;
+            if (ballX_ < -wall) {
+                ballX_ = -wall;
+                ballVX_ = -ballVX_;
+                float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
+                audio_.playClank(0.95f + std::min(0.25f, speed * 0.02f), 0.45f);
+                triggerShake(0.04f);
+                ballFlash_ = 0.12f;
+            } else if (ballX_ > wall) {
+                ballX_ = wall;
+                ballVX_ = -ballVX_;
+                float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
+                audio_.playClank(0.95f + std::min(0.25f, speed * 0.02f), 0.45f);
+                triggerShake(0.04f);
+                ballFlash_ = 0.12f;
             }
-            audio_.playClank(0.75f + std::min(0.35f, sp * 0.025f), 0.55f);
-            triggerShake(0.05f);
-            ballFlash_ = 0.18f;
+
+            float pz = 0.4f;
+            if (ballZ_ - BALL_R < pz + PADDLE_D * 0.5f && ballZ_ + BALL_R > pz - PADDLE_D * 0.5f &&
+                ballVZ_ < 0.0f) {
+                if (ballX_ + BALL_R > playerX_ - PADDLE_W * 0.5f &&
+                    ballX_ - BALL_R < playerX_ + PADDLE_W * 0.5f) {
+                    ballZ_ = pz + PADDLE_D * 0.5f + BALL_R;
+                    ballVZ_ = -ballVZ_ * 1.05f;
+                    float offset = (ballX_ - playerX_) / (PADDLE_W * 0.5f);
+                    ballVX_ += offset * 2.5f;
+                    float sp = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
+                    if (sp > 14.0f) {
+                        ballVX_ *= 14.0f / sp;
+                        ballVZ_ *= 14.0f / sp;
+                    }
+                    float pitch = 0.85f + std::min(0.4f, sp * 0.03f) + std::abs(offset) * 0.15f;
+                    audio_.playClank(pitch, 0.75f);
+                    triggerShake(0.12f + std::min(0.08f, sp * 0.008f));
+                    ballFlash_ = 0.2f;
+                }
+            }
+
+            float az = FIELD_L - 0.4f;
+            if (ballZ_ + BALL_R > az - PADDLE_D * 0.5f && ballZ_ - BALL_R < az + PADDLE_D * 0.5f &&
+                ballVZ_ > 0.0f) {
+                if (ballX_ + BALL_R > player2X_ - PADDLE_W * 0.5f &&
+                    ballX_ - BALL_R < player2X_ + PADDLE_W * 0.5f) {
+                    ballZ_ = az - PADDLE_D * 0.5f - BALL_R;
+                    ballVZ_ = -ballVZ_ * 1.05f;
+                    float offset = (ballX_ - player2X_) / (PADDLE_W * 0.5f);
+                    ballVX_ += offset * 2.5f;
+                    float sp = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
+                    if (sp > 14.0f) {
+                        ballVX_ *= 14.0f / sp;
+                        ballVZ_ *= 14.0f / sp;
+                    }
+                    audio_.playClank(0.75f + std::min(0.35f, sp * 0.025f), 0.55f);
+                    triggerShake(0.05f);
+                    ballFlash_ = 0.18f;
+                }
+            }
+
+            if (ballZ_ < -1.0f || ballZ_ > FIELD_L + 1.0f) {
+                scored = true;
+            }
         }
+
+        // Soft ghost trail (once per frame after integration)
+        for (int i = TRAIL_LEN - 1; i > 0; --i) {
+            trailX_[i] = trailX_[i - 1];
+            trailZ_[i] = trailZ_[i - 1];
+        }
+        trailX_[0] = ballX_;
+        trailZ_[0] = ballZ_;
     }
 
     if (ballZ_ < -1.0f) {
@@ -1396,9 +1445,7 @@ void Game::updateHud() {
     std::snprintf(buf, sizeof(buf),
                   "KugelMatch " KUGELMATCH_VERSION_STRING " [%s]%s | %s | %s %s | to%d | %s | %s refl%d sh%d sc%.2f exp%.2f %s | %.0fFPS",
                   mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
-                  (quality_ == Quality::Low) ? "LOW" :
-                  (quality_ == Quality::Medium) ? "MED" :
-                  (quality_ == Quality::High) ? "HIGH" : "ULTRA",
+                  qualityLabel(),
                   maxBounces_, shadowSamples_, cpuScale_, exposure_,
                   vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);

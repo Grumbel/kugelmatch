@@ -5,7 +5,13 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
-## 1.2.4
+## 1.2.5
+
+- Physics substeps to prevent paddle tunneling at high ball speed
+- Quality HUD shows CUST when bounces/shadows/scale diverge from preset
+- Intro camera keeps orbit angle advancing for a smoother fly-in
+
+
 
 - Fix CPU path writing past framebuffer when render scale ≠ 1 (use fbW/fbH)
 - Fix vsync toggle double-applying cpu_scale on CPU backend
