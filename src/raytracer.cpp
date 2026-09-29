@@ -138,14 +138,27 @@ Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
     Vec3 toLight = (scene.lightPos - h.point).normalized();
     float ndotl = std::max(0.0f, h.normal.dot(toLight));
 
-    Ray shadow;
-    shadow.origin = h.point + h.normal * 1e-3f;
-    shadow.dir = toLight;
-    Hit sh = intersect(shadow, scene);
-    float shadowFactor = 1.0f;
-    if (sh.hit && sh.t < (scene.lightPos - h.point).length()) {
-        shadowFactor = 0.25f;
+    // Soft shadow: 4 samples on a small disk around the light
+    float shadowFactor = 0.0f;
+    const Vec3 offsets[4] = {
+        Vec3(0.35f, 0.0f, 0.15f), Vec3(-0.25f, 0.1f, -0.30f),
+        Vec3(0.10f, 0.0f, -0.35f), Vec3(-0.15f, 0.05f, 0.40f),
+    };
+    const float lightRadius = 0.55f;
+    for (int i = 0; i < 4; ++i) {
+        Vec3 lp = scene.lightPos + offsets[i] * lightRadius;
+        Vec3 toL = lp - h.point;
+        float dist = toL.length();
+        toL = toL * (1.0f / std::max(dist, 1e-4f));
+        Ray shadow;
+        shadow.origin = h.point + h.normal * 1e-3f;
+        shadow.dir = toL;
+        Hit sh = intersect(shadow, scene);
+        if (!(sh.hit && sh.t < dist)) {
+            shadowFactor += 1.0f;
+        }
     }
+    shadowFactor = 0.22f + 0.78f * (shadowFactor * 0.25f);
 
     col += h.color * scene.lightColor * ndotl * shadowFactor;
 

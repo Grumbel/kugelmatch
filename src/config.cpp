@@ -100,6 +100,8 @@ bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {
             cfg.fullscreen = (val == "1" || val == "true");
         } else if (key == "vsync") {
             cfg.vsync = (val == "1" || val == "true");
+        } else if (key == "target_fps" || key == "fps") {
+            cfg.targetFps = std::atoi(val.c_str());
         }
     }
     if (cfg.maxBounces < 0) {
@@ -141,5 +143,6 @@ bool saveConfig(const AppConfig& cfg, std::string* savedTo) {
     out << "bounces=" << cfg.maxBounces << "\n";
     out << "fullscreen=" << (cfg.fullscreen ? 1 : 0) << "\n";
     out << "vsync=" << (cfg.vsync ? 1 : 0) << "\n";
+    out << "target_fps=" << cfg.targetFps << "\n";
     return true;
 }

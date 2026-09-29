@@ -332,6 +332,7 @@ AppConfig Game::currentConfig() const {
     c.twoPlayer = twoPlayer_;
     c.maxBounces = maxBounces_;
     c.vsync = vsync_;
+    c.targetFps = targetFps_;
     if (window_) {
         Uint32 flags = SDL_GetWindowFlags(window_);
         c.fullscreen = (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
@@ -349,6 +350,9 @@ void Game::applyConfig(const AppConfig& cfg) {
     twoPlayer_ = cfg.twoPlayer;
     maxBounces_ = std::max(0, std::min(3, cfg.maxBounces));
     vsync_ = cfg.vsync;
+    targetFps_ = cfg.targetFps;
+    if (targetFps_ < 0) targetFps_ = 0;
+    if (targetFps_ > 300) targetFps_ = 300;
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
 }
@@ -767,6 +771,55 @@ void Game::addScoreboard(Scene& scene) const {
 
 
 
+
+void Game::addMatchPointBanner(Scene& scene) const {
+    if (state_ != GameState::Play || !isMatchPoint()) {
+        return;
+    }
+    // Flash "MATCH" above midfield with pulse scale/brightness
+    auto glyph = [](char ch) -> const int* {
+        static const int M[7] = {0b10001,0b11011,0b10101,0b10001,0b10001,0b10001,0b10001};
+        static const int A[7] = {0b01110,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001};
+        static const int T[7] = {0b11111,0b00100,0b00100,0b00100,0b00100,0b00100,0b00100};
+        static const int C[7] = {0b01110,0b10001,0b10000,0b10000,0b10000,0b10001,0b01110};
+        static const int H[7] = {0b10001,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001};
+        switch (ch) {
+        case 'M': return M;
+        case 'A': return A;
+        case 'T': return T;
+        case 'C': return C;
+        case 'H': return H;
+        default: return A;
+        }
+    };
+    float pulse = 0.5f + 0.5f * std::sin(animTime_ * 7.0f);
+    float cell = 0.11f + 0.02f * pulse;
+    float gap = 0.16f;
+    const char* word = "MATCH";
+    float width = 5 * (5 * cell + gap) - gap;
+    float startX = -width * 0.5f;
+    float baseY = 2.3f + 0.12f * pulse;
+    float z = FIELD_L * 0.5f - 0.8f;
+    Vec3 col(1.0f, 0.55f + 0.35f * pulse, 0.25f + 0.2f * pulse);
+    for (int ci = 0; word[ci]; ++ci) {
+        const int* rows = glyph(word[ci]);
+        float ox = startX + ci * (5 * cell + gap);
+        for (int r = 0; r < 7; ++r) {
+            int bits = rows[r];
+            for (int c = 0; c < 5; ++c) {
+                if (bits & (1 << (4 - c))) {
+                    float x0 = ox + c * cell;
+                    float y0 = baseY + (6 - r) * cell;
+                    pushBox(scene,
+                            Vec3(x0, y0, z),
+                            Vec3(x0 + cell * 0.85f, y0 + cell * 0.85f, z + 0.08f),
+                            col, 0.6f);
+                }
+            }
+        }
+    }
+}
+
 void Game::addServeCountdown(Scene& scene) const {
     if (serveTimer_ <= 0.0f || state_ != GameState::Play) {
         return;
@@ -955,6 +1008,7 @@ void Game::buildScene() {
         addTitleGeometry(scene_);
     }
     addServeCountdown(scene_);
+    addMatchPointBanner(scene_);
 
     Sphere ball;
     ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
@@ -1324,5 +1378,18 @@ void Game::run() {
             presentCpu();
         }
         updateHud();
+
+        // Frame-time cap when vsync is off (optional target_fps)
+        if (!vsync_ && targetFps_ > 0) {
+            Uint64 after = SDL_GetPerformanceCounter();
+            float elapsed = static_cast<float>(after - now) / static_cast<float>(freq);
+            float target = 1.0f / static_cast<float>(targetFps_);
+            if (elapsed < target) {
+                Uint32 ms = static_cast<Uint32>((target - elapsed) * 1000.0f);
+                if (ms > 0) {
+                    SDL_Delay(ms);
+                }
+            }
+        }
     }
 }

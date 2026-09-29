@@ -15,6 +15,7 @@ struct AppConfig {
     int maxBounces = 3;   // 0..3 reflection quality
     bool fullscreen = false;
     bool vsync = true;
+    int targetFps = 60; // 0 = uncapped when vsync off
 };
 
 // Load from path (or default locations). Returns true if a file was read.

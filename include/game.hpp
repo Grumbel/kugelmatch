@@ -44,6 +44,7 @@ private:
     bool twoPlayer_ = false;
     int maxBounces_ = 3;
     bool vsync_ = true;
+    int targetFps_ = 60;
 
     SDL_Window* window_ = nullptr;
     SDL_Renderer* sdlRenderer_ = nullptr;
@@ -121,6 +122,7 @@ private:
     void addOptionsGeometry(Scene& scene) const;
     void addTitleGeometry(Scene& scene) const;
     void addServeCountdown(Scene& scene) const;
+    void addMatchPointBanner(Scene& scene) const;
     void applyVsync();
     bool isMatchPoint() const;
     void applyConfig(const AppConfig& cfg);

@@ -146,17 +146,37 @@ Hit intersect(vec3 ro, vec3 rd) {
 }
 
 // Local lighting for a single hit (no recursion — Mesa forbids recursive GLSL).
+// Soft shadow: 4 samples on a small disk around the light.
+float softShadow(vec3 p, vec3 n) {
+    float lit = 0.0;
+    // Fixed disk offsets (no RNG needed; stable frame-to-frame)
+    vec3 offsets[4];
+    offsets[0] = vec3( 0.35, 0.0,  0.15);
+    offsets[1] = vec3(-0.25, 0.1, -0.30);
+    offsets[2] = vec3( 0.10, 0.0, -0.35);
+    offsets[3] = vec3(-0.15, 0.05, 0.40);
+    float lightRadius = 0.55;
+    for (int i = 0; i < 4; ++i) {
+        vec3 lp = u_lightPos + offsets[i] * lightRadius;
+        vec3 toL = lp - p;
+        float dist = length(toL);
+        toL /= max(dist, 1e-4);
+        Hit sh = intersect(p + n * 1e-3, toL);
+        if (!(sh.hit && sh.t < dist)) {
+            lit += 1.0;
+        }
+    }
+    // Map fully lit → 1.0, fully occluded → 0.22 (ambient-ish floor)
+    return mix(0.22, 1.0, lit * 0.25);
+}
+
 vec3 shadeHit(Hit h, vec3 rd) {
     vec3 col = h.color * u_ambient;
 
     vec3 toLight = normalize(u_lightPos - h.point);
     float ndotl = max(0.0, dot(h.normal, toLight));
 
-    Hit sh = intersect(h.point + h.normal * 1e-3, toLight);
-    float shadowFactor = 1.0;
-    if (sh.hit && sh.t < length(u_lightPos - h.point)) {
-        shadowFactor = 0.25;
-    }
+    float shadowFactor = softShadow(h.point, h.normal);
 
     col += h.color * u_lightColor * ndotl * shadowFactor;
 
