@@ -5,6 +5,12 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
+## 1.2.3
+
+- GPU render scale via FBO (quality presets / `cpu_scale` apply to both backends)
+- Optional GPU max resolution clamp (shared with CPU caps)
+- HUD shows render scale
+
 ## 1.2.2
 
 - Quality presets Low/Medium/High/Ultra (**Q** / **F10**): bounces, soft-shadow samples, CPU scale

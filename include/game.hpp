@@ -158,6 +158,7 @@ private:
     void cycleTheme();
     void cycleQuality();
     void applyQualityPreset();
+    void syncGpuScale();
     void adjustExposure(float delta);
     void paddleColors(Vec3& player, Vec3& farPad) const;
     void applyVsync();

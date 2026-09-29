@@ -60,6 +60,7 @@ bool Game::initWindowAndBackend() {
             std::fprintf(stderr, "GPU raytracer init failed.\n");
             return false;
         }
+        syncGpuScale();
         applyVsync();
     } else {
         sdlRenderer_ = SDL_CreateRenderer(
@@ -367,6 +368,7 @@ void Game::applyQualityPreset() {
         cpuScale_ = 1.25f;
         break;
     }
+    syncGpuScale();
 }
 
 void Game::cycleQuality() {
@@ -376,6 +378,14 @@ void Game::cycleQuality() {
     fbW_ = fbH_ = 0;
     audio_.playSoftThud(0.65f + static_cast<float>(quality_) * 0.12f, 0.25f);
     persistConfig();
+}
+
+void Game::syncGpuScale() {
+    if (!gpuRt_.ready()) {
+        return;
+    }
+    gpuRt_.setRenderScale(cpuScale_);
+    gpuRt_.setMaxResolution(cpuMaxWidth_, cpuMaxHeight_);
 }
 
 void Game::adjustExposure(float delta) {
@@ -464,6 +474,7 @@ void Game::applyConfig(const AppConfig& cfg) {
     }
     if (cpuScale_ < 0.25f) cpuScale_ = 0.25f;
     if (cpuScale_ > 2.0f) cpuScale_ = 2.0f;
+    syncGpuScale();
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
 }
@@ -1383,12 +1394,12 @@ void Game::updateHud() {
     }
     char buf[320];
     std::snprintf(buf, sizeof(buf),
-                  "KugelMatch " KUGELMATCH_VERSION_STRING " [%s]%s | %s | %s %s | to%d | %s | %s refl%d sh%d exp%.2f %s | %.0fFPS",
+                  "KugelMatch " KUGELMATCH_VERSION_STRING " [%s]%s | %s | %s %s | to%d | %s | %s refl%d sh%d sc%.2f exp%.2f %s | %.0fFPS",
                   mode, mute, st, diff, twoPlayer_ ? "2P" : "1P", pointsToWin_, cam,
                   (quality_ == Quality::Low) ? "LOW" :
                   (quality_ == Quality::Medium) ? "MED" :
                   (quality_ == Quality::High) ? "HIGH" : "ULTRA",
-                  maxBounces_, shadowSamples_, exposure_,
+                  maxBounces_, shadowSamples_, cpuScale_, exposure_,
                   vsync_ ? "VSYNC" : "FREE", fpsSmooth_);
     SDL_SetWindowTitle(window_, buf);
 }
