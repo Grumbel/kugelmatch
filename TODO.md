@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — attract SPACE hint, ball trail, CPU max res, Makefile
+**Tip:** `b053440` — attract hint, trail, CPU cap, Makefile
 
 ## Done
 
