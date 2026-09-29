@@ -12,21 +12,6 @@
 
 namespace {
 
-// 7-segment masks for digits 0-9 (bits A F B G E C D — standard-ish)
-// Segment order: A(top) B(ur) C(lr) D(bot) E(ll) F(ul) G(mid)
-constexpr int kSegMask[10] = {
-    0b1110111, // 0 ABCDEF
-    0b0010010, // 1 BC
-    0b1011101, // 2 ABDEG
-    0b1011011, // 3 ABCDG
-    0b0111010, // 4 BCFG
-    0b1101011, // 5 ACDFG
-    0b1101111, // 6 ACDEFG
-    0b1010010, // 7 ABC
-    0b1111111, // 8
-    0b1111011, // 9 ABCDFG
-};
-
 void pushBox(Scene& scene, const Vec3& minb, const Vec3& maxb, const Vec3& color,
              float reflectivity) {
     Box b;
