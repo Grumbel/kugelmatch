@@ -7,6 +7,9 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 ## Unreleased (1.2.14-dev)
 
+- Fix upside-down view: camera `up = forward × right` (was inverted)
+- Document world axes in `docs/COORDINATES.md`
+- Expanded CLI (`--help`): display, quality, match, audio; options override config file
 - Version from top-level `VERSION` file (CMake + Nix; `--version` prints full string)
 - Development builds append `.{revCount}+g{shortRev}` when `VERSION` contains `-dev`
 

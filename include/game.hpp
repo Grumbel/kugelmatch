@@ -46,7 +46,9 @@ public:
     explicit Game(RenderBackend backend);
     ~Game();
 
-    bool init();
+    /** Load config file, then apply optional CLI overrides (mask bits: CliOverride). */
+    bool init(const AppConfig* cli = nullptr, unsigned cliMask = 0);
+    void applyCliOverrides(const AppConfig& cfg, unsigned mask);
     void run();
     void shutdown();
 

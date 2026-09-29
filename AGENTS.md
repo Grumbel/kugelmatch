@@ -28,6 +28,11 @@ Both backends share the same scene description and game logic.
 - Prefer small, focused commits
 - Document progress and the current tip in `TODO.md`
 
+## Coordinates
+
+Right-handed: **+Y up**, **+Z** toward the far paddle, **+X** to the right when looking down-field.
+Details: `docs/COORDINATES.md`.
+
 ## Layout
 
 ```

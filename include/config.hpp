@@ -30,3 +30,29 @@ struct AppConfig {
 bool loadConfig(AppConfig& cfg, std::string* loadedFrom = nullptr);
 bool saveConfig(const AppConfig& cfg, std::string* savedTo = nullptr);
 std::string defaultConfigPath();
+
+// Bitmask for which AppConfig fields were set on the command line (override file).
+namespace CliOverride {
+enum : unsigned {
+    None         = 0,
+    Backend      = 1u << 0,  // useGpu
+    Volume       = 1u << 1,
+    Mute         = 1u << 2,
+    Diff         = 1u << 3,
+    PointsToWin  = 1u << 4,
+    Cam          = 1u << 5,
+    TwoPlayer    = 1u << 6,
+    MaxBounces   = 1u << 7,
+    Fullscreen   = 1u << 8,
+    Vsync        = 1u << 9,
+    TargetFps    = 1u << 10,
+    ShadowSamples= 1u << 11,
+    Exposure     = 1u << 12,
+    ThemeId      = 1u << 13,
+    SlowmoReplay = 1u << 14,
+    CpuMaxWidth  = 1u << 15,
+    CpuMaxHeight = 1u << 16,
+    CpuScale     = 1u << 17,
+    QualityId    = 1u << 18,
+};
+} // namespace CliOverride

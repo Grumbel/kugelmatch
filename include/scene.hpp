@@ -74,10 +74,12 @@ struct Camera {
     void set(const Vec3& position, const Vec3& lookAt, const Vec3& worldUp, float fovDeg) {
         pos = position;
         forward = (lookAt - position).normalized();
-        // Right-handed view basis: screen-right = worldUp × forward.
-        // (forward × worldUp flips X and mirrors in-world text.)
+        // Right-handed camera basis (see docs/COORDINATES.md):
+        //   right = worldUp × forward  → screen-right aligns with +X when looking +Z
+        //   up    = forward × right    → screen-up aligns with +Y (not inverted)
+        // Using right.cross(forward) here would flip Y and render the world upside-down.
         right = worldUp.cross(forward).normalized();
-        up = right.cross(forward).normalized();
+        up = forward.cross(right).normalized();
         float fovRad = fovDeg * 3.14159265f / 180.0f;
         fovScale = std::tan(fovRad * 0.5f);
     }

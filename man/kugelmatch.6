@@ -23,15 +23,28 @@ OpenGL fragment-shader raytracer (fullscreen triangle, no scene meshes).
 The look is intentionally 1990s: checkerboard floor and walls, a reflective
 mirror ball, and a camera attached to the near paddle looking down the court.
 .SH OPTIONS
+Command-line options override the config file. Common flags:
 .TP
-.B \-\-cpu
-Select the software raytracer backend.
+.B \-\-cpu / \-\-gpu
+Select the software or GPU raytracer backend.
 .TP
-.B \-\-gpu
-Select the GPU fragment-shader backend.
+.B \-\-fullscreen / \-\-windowed
+Display mode.
+.TP
+.B \-\-quality low|medium|high|ultra
+Quality preset (bounces, shadows, scale).
+.TP
+.B \-\-scale F, \-\-vsync / \-\-no-vsync, \-\-fps N
+Render scale and frame pacing.
+.TP
+.B \-\-1p / \-\-2p, \-\-difficulty, \-\-points, \-\-camera, \-\-theme
+Match options.
+.TP
+.B \-\-version
+Print version and exit.
 .TP
 .B \-h, \-\-help
-Print a short usage message and exit.
+Print full help and exit.
 .SH CONTROLS
 .SS Match flow
 .TP

@@ -221,7 +221,7 @@ void Game::flushPendingResize(float dt) {
     applyWindowSize(pendingWinW_, pendingWinH_);
 }
 
-bool Game::init() {
+bool Game::init(const AppConfig* cli, unsigned cliMask) {
     Uint32 sdlFlags = SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO;
     if (SDL_Init(sdlFlags) != 0) {
         std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -236,22 +236,32 @@ bool Game::init() {
         std::fprintf(stderr, "Warning: audio init failed; continuing without sound.\n");
     }
 
+    bool wantFullscreen = false;
     {
         AppConfig cfg;
         std::string from;
         if (loadConfig(cfg, &from)) {
             std::fprintf(stderr, "Loaded config from %s\n", from.c_str());
             applyConfig(cfg);
-            applyVsync();
-            // Backend is chosen at construction; optional switch if mismatch
-            if (cfg.useGpu && backend_ != RenderBackend::Gpu) {
-                switchBackend(RenderBackend::Gpu);
-            } else if (!cfg.useGpu && backend_ != RenderBackend::Cpu) {
-                switchBackend(RenderBackend::Cpu);
+            wantFullscreen = cfg.fullscreen;
+        }
+        // Command line wins over the config file for selected fields.
+        if (cli && cliMask) {
+            applyCliOverrides(*cli, cliMask);
+            using namespace CliOverride;
+            if (cliMask & Fullscreen) {
+                wantFullscreen = cli->fullscreen;
             }
-            if (cfg.fullscreen) {
-                SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP);
+            if (cliMask & Backend) {
+                const RenderBackend want = cli->useGpu ? RenderBackend::Gpu : RenderBackend::Cpu;
+                if (want != backend_) {
+                    switchBackend(want);
+                }
             }
+        }
+        applyVsync();
+        if (wantFullscreen) {
+            SDL_SetWindowFullscreen(window_, SDL_WINDOW_FULLSCREEN_DESKTOP);
         }
     }
 
@@ -563,6 +573,76 @@ void Game::applyConfig(const AppConfig& cfg) {
     syncGpuScale();
     audio_.setMasterVolume(cfg.volume);
     audio_.setMuted(cfg.mute);
+}
+
+void Game::applyCliOverrides(const AppConfig& cfg, unsigned mask) {
+    using namespace CliOverride;
+    if (mask == None) {
+        return;
+    }
+    if (mask & Diff) {
+        difficulty_ = static_cast<Difficulty>(std::max(0, std::min(2, cfg.difficulty)));
+    }
+    if (mask & PointsToWin) {
+        pointsToWin_ = cfg.pointsToWin;
+        if (pointsToWin_ != 7 && pointsToWin_ != 11 && pointsToWin_ != 15 && pointsToWin_ != 21) {
+            pointsToWin_ = 11;
+        }
+    }
+    if (mask & Cam) {
+        cameraMode_ = static_cast<CameraMode>(std::max(0, std::min(2, cfg.cameraMode)));
+    }
+    if (mask & TwoPlayer) {
+        twoPlayer_ = cfg.twoPlayer;
+    }
+    if (mask & MaxBounces) {
+        maxBounces_ = std::max(0, std::min(3, cfg.maxBounces));
+    }
+    if (mask & Vsync) {
+        vsync_ = cfg.vsync;
+    }
+    if (mask & TargetFps) {
+        targetFps_ = cfg.targetFps;
+        if (targetFps_ < 0) targetFps_ = 0;
+        if (targetFps_ > 300) targetFps_ = 300;
+    }
+    if (mask & ShadowSamples) {
+        shadowSamples_ = std::max(1, std::min(8, cfg.shadowSamples));
+    }
+    if (mask & Exposure) {
+        exposure_ = cfg.exposure;
+        if (exposure_ < 0.1f) exposure_ = 0.1f;
+        if (exposure_ > 3.0f) exposure_ = 3.0f;
+    }
+    if (mask & ThemeId) {
+        theme_ = static_cast<Theme>(std::max(0, std::min(3, cfg.theme)));
+    }
+    if (mask & QualityId) {
+        quality_ = static_cast<Quality>(std::max(0, std::min(3, cfg.quality)));
+        applyQualityPreset();
+    }
+    if (mask & SlowmoReplay) {
+        slowmoReplay_ = cfg.slowmoReplay;
+    }
+    if (mask & CpuMaxWidth) {
+        cpuMaxWidth_ = cfg.cpuMaxWidth;
+    }
+    if (mask & CpuMaxHeight) {
+        cpuMaxHeight_ = cfg.cpuMaxHeight;
+    }
+    if (mask & CpuScale) {
+        cpuScale_ = cfg.cpuScale;
+        if (cpuScale_ < 0.25f) cpuScale_ = 0.25f;
+        if (cpuScale_ > 2.0f) cpuScale_ = 2.0f;
+        syncGpuScale();
+    }
+    if (mask & Volume) {
+        audio_.setMasterVolume(cfg.volume);
+    }
+    if (mask & Mute) {
+        audio_.setMuted(cfg.mute);
+    }
+    // Fullscreen / backend handled in main before/after init window
 }
 
 void Game::persistConfig() {
