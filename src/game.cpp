@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>
 #include "game.hpp"
+#include "glyphs.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -806,35 +807,6 @@ void Game::update(float dt) {
     }
 }
 
-void Game::addDigitBoxes(Scene& scene, float ox, float oy, float oz, int digit,
-                         const Vec3& color) const {
-    digit = std::max(0, std::min(9, digit));
-    const int mask = kSegMask[digit];
-    const float t = 0.07f;  // segment thickness
-    const float w = 0.38f;  // horizontal span
-    const float h = 0.55f;  // vertical half
-    const float d = 0.08f;  // depth into room
-
-    auto seg = [&](int bit, float x0, float y0, float x1, float y1) {
-        if ((mask & bit) == 0) {
-            return;
-        }
-        pushBox(scene,
-                Vec3(ox + x0, oy + y0, oz - d * 0.5f),
-                Vec3(ox + x1, oy + y1, oz + d * 0.5f),
-                color, 0.45f);
-    };
-
-    // A top, B upper-right, C lower-right, D bottom, E lower-left, F upper-left, G mid
-    seg(0b1000000, -w * 0.5f, h - t, w * 0.5f, h);           // A
-    seg(0b0000010, w * 0.5f - t, 0.0f, w * 0.5f, h - t);     // B
-    seg(0b0000100, w * 0.5f - t, -h, w * 0.5f, 0.0f);        // C
-    seg(0b0000001, -w * 0.5f, -h, w * 0.5f, -h + t);         // D
-    seg(0b0001000, -w * 0.5f, -h, -w * 0.5f + t, 0.0f);      // E
-    seg(0b0100000, -w * 0.5f, 0.0f, -w * 0.5f + t, h - t);   // F
-    seg(0b0010000, -w * 0.5f, -t * 0.5f, w * 0.5f, t * 0.5f); // G
-}
-
 void Game::addScoreboard(Scene& scene) const {
     // Hanging board above midfield, facing down the long axis slightly
     const float boardY = WALL_H - 0.55f;
@@ -888,10 +860,10 @@ void Game::addScoreboard(Scene& scene) const {
     int aOnes = aiScore_ % 10;
 
     // Always show ones; show tens if >= 10 or always for classic look
-    addDigitBoxes(scene, -1.05f, digitY, digitZ, pTens, colPlayer);
-    addDigitBoxes(scene, -0.45f, digitY, digitZ, pOnes, colPlayer);
-    addDigitBoxes(scene, 0.45f, digitY, digitZ, aTens, colAi);
-    addDigitBoxes(scene, 1.05f, digitY, digitZ, aOnes, colAi);
+    glyphs::addDigit7(scene, -1.05f, digitY, digitZ, pTens, colPlayer);
+    glyphs::addDigit7(scene, -0.45f, digitY, digitZ, pOnes, colPlayer);
+    glyphs::addDigit7(scene, 0.45f, digitY, digitZ, aTens, colAi);
+    glyphs::addDigit7(scene, 1.05f, digitY, digitZ, aOnes, colAi);
 }
 
 
@@ -903,25 +875,6 @@ void Game::addGameOverBanner(Scene& scene) const {
     if (state_ != GameState::GameOver) {
         return;
     }
-    auto glyph = [](char ch) -> const int* {
-        static const int W[7] = {0b10001,0b10001,0b10001,0b10101,0b10101,0b11011,0b10001};
-        static const int I[7] = {0b01110,0b00100,0b00100,0b00100,0b00100,0b00100,0b01110};
-        static const int N[7] = {0b10001,0b11001,0b10101,0b10011,0b10001,0b10001,0b10001};
-        static const int L[7] = {0b10000,0b10000,0b10000,0b10000,0b10000,0b10000,0b11111};
-        static const int O[7] = {0b01110,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110};
-        static const int S[7] = {0b01111,0b10000,0b10000,0b01110,0b00001,0b00001,0b11110};
-        static const int E[7] = {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111};
-        switch (ch) {
-        case 'W': return W;
-        case 'I': return I;
-        case 'N': return N;
-        case 'L': return L;
-        case 'O': return O;
-        case 'S': return S;
-        case 'E': return E;
-        default: return I;
-        }
-    };
     const char* word = playerWon_ ? "WIN" : "LOSE";
     float pulse = 0.5f + 0.5f * std::sin(gameOverTime_ * 5.0f);
     float cell = 0.16f + 0.03f * pulse;
@@ -931,48 +884,15 @@ void Game::addGameOverBanner(Scene& scene) const {
     float startX = -width * 0.5f;
     float baseY = 2.1f + 0.15f * pulse;
     float z = FIELD_L * 0.5f - 1.2f;
-    Vec3 col = playerWon_
-                   ? Vec3(0.45f, 1.0f, 0.55f)
-                   : Vec3(1.0f, 0.35f + 0.2f * pulse, 0.3f);
-    for (int ci = 0; word[ci]; ++ci) {
-        const int* rows = glyph(word[ci]);
-        float ox = startX + ci * (5 * cell + gap);
-        for (int r = 0; r < 7; ++r) {
-            int bits = rows[r];
-            for (int c = 0; c < 5; ++c) {
-                if (bits & (1 << (4 - c))) {
-                    float x0 = ox + c * cell;
-                    float y0 = baseY + (6 - r) * cell;
-                    pushBox(scene,
-                            Vec3(x0, y0, z),
-                            Vec3(x0 + cell * 0.85f, y0 + cell * 0.85f, z + 0.1f),
-                            col, 0.65f);
-                }
-            }
-        }
-    }
+    Vec3 col = playerWon_ ? Vec3(0.45f, 1.0f, 0.55f)
+                          : Vec3(1.0f, 0.35f + 0.2f * pulse, 0.3f);
+    glyphs::addWord(scene, word, startX, baseY, z, cell, gap, col, 0.65f);
 }
 
 void Game::addMatchPointBanner(Scene& scene) const {
     if (state_ != GameState::Play || !isMatchPoint()) {
         return;
     }
-    // Flash "MATCH" above midfield with pulse scale/brightness
-    auto glyph = [](char ch) -> const int* {
-        static const int M[7] = {0b10001,0b11011,0b10101,0b10001,0b10001,0b10001,0b10001};
-        static const int A[7] = {0b01110,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001};
-        static const int T[7] = {0b11111,0b00100,0b00100,0b00100,0b00100,0b00100,0b00100};
-        static const int C[7] = {0b01110,0b10001,0b10000,0b10000,0b10000,0b10001,0b01110};
-        static const int H[7] = {0b10001,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001};
-        switch (ch) {
-        case 'M': return M;
-        case 'A': return A;
-        case 'T': return T;
-        case 'C': return C;
-        case 'H': return H;
-        default: return A;
-        }
-    };
     float pulse = 0.5f + 0.5f * std::sin(animTime_ * 7.0f);
     float cell = 0.11f + 0.02f * pulse;
     float gap = 0.16f;
@@ -982,23 +902,7 @@ void Game::addMatchPointBanner(Scene& scene) const {
     float baseY = 2.3f + 0.12f * pulse;
     float z = FIELD_L * 0.5f - 0.8f;
     Vec3 col(1.0f, 0.55f + 0.35f * pulse, 0.25f + 0.2f * pulse);
-    for (int ci = 0; word[ci]; ++ci) {
-        const int* rows = glyph(word[ci]);
-        float ox = startX + ci * (5 * cell + gap);
-        for (int r = 0; r < 7; ++r) {
-            int bits = rows[r];
-            for (int c = 0; c < 5; ++c) {
-                if (bits & (1 << (4 - c))) {
-                    float x0 = ox + c * cell;
-                    float y0 = baseY + (6 - r) * cell;
-                    pushBox(scene,
-                            Vec3(x0, y0, z),
-                            Vec3(x0 + cell * 0.85f, y0 + cell * 0.85f, z + 0.08f),
-                            col, 0.6f);
-                }
-            }
-        }
-    }
+    glyphs::addWord(scene, word, startX, baseY, z, cell, gap, col, 0.6f);
 }
 
 void Game::addServeCountdown(Scene& scene) const {
@@ -1013,7 +917,7 @@ void Game::addServeCountdown(Scene& scene) const {
         n = 2;
     }
     const float pulse = 0.15f * std::sin(serveTimer_ * 12.0f);
-    addDigitBoxes(scene, 0.0f, 1.4f + pulse, FIELD_L * 0.5f,
+    glyphs::addDigit7(scene, 0.0f, 1.4f + pulse, FIELD_L * 0.5f,
                   n, Vec3(1.0f, 0.95f, 0.4f));
 }
 
@@ -1022,32 +926,10 @@ void Game::addAttractHint(Scene& scene) const {
     if (state_ != GameState::Attract) {
         return;
     }
-    auto glyph = [](char ch) -> const int* {
-        static const int S[7] = {0b01111,0b10000,0b10000,0b01110,0b00001,0b00001,0b11110};
-        static const int P[7] = {0b11110,0b10001,0b10001,0b11110,0b10000,0b10000,0b10000};
-        static const int A[7] = {0b01110,0b10001,0b10001,0b11111,0b10001,0b10001,0b10001};
-        static const int C[7] = {0b01110,0b10001,0b10000,0b10000,0b10000,0b10001,0b01110};
-        static const int E[7] = {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111};
-        static const int O[7] = {0b01110,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110};
-        static const int N[7] = {0b10001,0b11001,0b10101,0b10011,0b10001,0b10001,0b10001};
-        static const int G[7] = {0b01110,0b10001,0b10000,0b10111,0b10001,0b10001,0b01110};
-        switch (ch) {
-        case 'S': return S;
-        case 'P': return P;
-        case 'A': return A;
-        case 'C': return C;
-        case 'E': return E;
-        case 'O': return O;
-        case 'N': return N;
-        case 'G': return G;
-        default: return A;
-        }
-    };
     float pulse = 0.5f + 0.5f * std::sin(attractTime_ * 3.0f);
     if (pulse < 0.28f) {
-        return; // blink off — saves boxes
+        return;
     }
-    // Cycle: SPACE -> PONG -> GO
     int phase = static_cast<int>(attractTime_ / 2.8f) % 3;
     const char* word = (phase == 0) ? "SPACE" : (phase == 1) ? "PONG" : "GO";
     float cell = (phase == 2) ? 0.14f : 0.09f;
@@ -1058,75 +940,20 @@ void Game::addAttractHint(Scene& scene) const {
     }
     float width = len * (5 * cell + gap) - gap;
     float startX = -width * 0.5f;
-    float baseY = 1.15f;
-    float z = 2.4f;
     Vec3 col = (phase == 1) ? Vec3(0.55f + 0.3f * pulse, 0.85f, 1.0f)
              : (phase == 2) ? Vec3(0.5f + 0.4f * pulse, 1.0f, 0.45f)
                             : Vec3(0.85f + 0.15f * pulse, 0.9f, 0.55f + 0.3f * pulse);
-    for (int ci = 0; word[ci]; ++ci) {
-        const int* rows = glyph(word[ci]);
-        float ox = startX + ci * (5 * cell + gap);
-        for (int r = 0; r < 7; ++r) {
-            int bits = rows[r];
-            for (int c = 0; c < 5; ++c) {
-                if (bits & (1 << (4 - c))) {
-                    float x0 = ox + c * cell;
-                    float y0 = baseY + (6 - r) * cell;
-                    pushBox(scene,
-                            Vec3(x0, y0, z),
-                            Vec3(x0 + cell * 0.85f, y0 + cell * 0.85f, z + 0.07f),
-                            col, 0.4f);
-                }
-            }
-        }
-    }
+    glyphs::addWord(scene, word, startX, 1.15f, 2.4f, cell, gap, col, 0.4f);
 }
 
 void Game::addTitleGeometry(Scene& scene) const {
-    // Block letters "KUGEL" in 5x7 voxels above the near field (attract ornament)
-    // Glyphs packed as 7 rows of 5 bits (MSB = left)
-    auto glyph = [](char ch) -> const int* {
-        // each int is one row, bits 4..0
-        static const int K[7] = {0b10001,0b10010,0b10100,0b11000,0b10100,0b10010,0b10001};
-        static const int U[7] = {0b10001,0b10001,0b10001,0b10001,0b10001,0b10001,0b01110};
-        static const int G[7] = {0b01110,0b10001,0b10000,0b10111,0b10001,0b10001,0b01110};
-        static const int E[7] = {0b11111,0b10000,0b10000,0b11110,0b10000,0b10000,0b11111};
-        static const int L[7] = {0b10000,0b10000,0b10000,0b10000,0b10000,0b10000,0b11111};
-        switch (ch) {
-        case 'K': return K;
-        case 'U': return U;
-        case 'G': return G;
-        case 'E': return E;
-        case 'L': return L;
-        default: return E;
-        }
-    };
-
+    float cell = 0.14f;
+    float gap = 0.22f;
     const char* word = "KUGEL";
-    const float cell = 0.14f;
-    const float gap = 0.22f;
-    const float startX = -1.7f;
-    const float baseY = 2.0f;
-    const float z = 3.5f;
-    const Vec3 col(0.95f, 0.75f, 0.25f);
-
-    for (int ci = 0; word[ci]; ++ci) {
-        const int* rows = glyph(word[ci]);
-        float ox = startX + ci * (5 * cell + gap);
-        for (int r = 0; r < 7; ++r) {
-            int bits = rows[r];
-            for (int c = 0; c < 5; ++c) {
-                if (bits & (1 << (4 - c))) {
-                    float x0 = ox + c * cell;
-                    float y0 = baseY + (6 - r) * cell;
-                    pushBox(scene,
-                            Vec3(x0, y0, z),
-                            Vec3(x0 + cell * 0.9f, y0 + cell * 0.9f, z + 0.1f),
-                            col, 0.55f);
-                }
-            }
-        }
-    }
+    float width = 5 * (5 * cell + gap) - gap;
+    float startX = -width * 0.5f;
+    glyphs::addWord(scene, word, startX, 2.0f, 3.5f, cell, gap,
+                    Vec3(0.95f, 0.75f, 0.25f), 0.55f);
 }
 
 void Game::addOptionsGeometry(Scene& scene) const {
@@ -1184,9 +1011,9 @@ void Game::addOptionsGeometry(Scene& scene) const {
     }
 
     // Points-to-win as a small digit on the floor front (always visible)
-    addDigitBoxes(scene, 0.0f, 0.55f, 1.0f, pointsToWin_ >= 10 ? pointsToWin_ / 10 : 0,
+    glyphs::addDigit7(scene, 0.0f, 0.55f, 1.0f, pointsToWin_ >= 10 ? pointsToWin_ / 10 : 0,
                   Vec3(0.9f, 0.9f, 0.5f));
-    addDigitBoxes(scene, 0.55f, 0.55f, 1.0f, pointsToWin_ % 10, Vec3(0.9f, 0.9f, 0.5f));
+    glyphs::addDigit7(scene, 0.55f, 0.55f, 1.0f, pointsToWin_ % 10, Vec3(0.9f, 0.9f, 0.5f));
 }
 
 void Game::buildScene() {

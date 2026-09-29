@@ -20,9 +20,16 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build -j$(nproc)
-      - name: Smoke (CPU headless-ish)
+      - name: Smoke (CPU)
         run: |
-          # SDL may need a dummy video driver in CI
           export SDL_VIDEODRIVER=dummy
           export SDL_AUDIODRIVER=dummy
           timeout 3 ./build/kugelmatch --cpu || test $? -eq 124 -o $? -eq 0
+
+  build-nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Build with Nix
+        run: nix build -L

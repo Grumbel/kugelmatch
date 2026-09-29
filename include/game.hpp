@@ -154,8 +154,6 @@ private:
     AppConfig currentConfig() const;
     void persistConfig();
     void cycleBounces();
-    void addDigitBoxes(Scene& scene, float ox, float oy, float oz, int digit,
-                       const Vec3& color) const;
     void presentCpu();
     void updateHud();
     void toggleFullscreen();

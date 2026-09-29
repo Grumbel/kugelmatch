@@ -25,6 +25,7 @@ add_executable(kugelmatch
   src/game.cpp
   src/audio.cpp
   src/config.cpp
+  src/glyphs.cpp
 )
 
 target_include_directories(kugelmatch PRIVATE
