@@ -11,10 +11,20 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
+      lib = nixpkgs.lib;
+
+      versionBase = lib.strings.removeSuffix "\n" (builtins.readFile ./VERSION);
+      gitRev = "${self.shortRev or self.dirtyShortRev or "dirty"}";
+      isDev = lib.strings.hasInfix "-dev" versionBase;
+      version =
+        if isDev then
+          "${versionBase}.${toString (self.revCount or 0)}+g${gitRev}"
+        else
+          versionBase;
 
       kugelmatch = pkgs.stdenv.mkDerivation {
         pname = "kugelmatch";
-        version = "1.2.13";
+        inherit version;
         src = ./.;
 
         nativeBuildInputs = with pkgs; [
@@ -31,12 +41,10 @@
         cmakeFlags = [
           "-DCMAKE_BUILD_TYPE=Release"
           "-DKUGELMATCH_NATIVE=OFF"
+          "-DPROJECT_VERSION_FULL=${version}"
         ];
-
-        # CMake install rules place bin, man, desktop, icon, metainfo, shaders
       };
 
-      # Helper scripts for the dev shell (build into /tmp/kugelmatch-build).
       kugelmatch-configure = pkgs.writeShellScriptBin "kugelmatch-configure" ''
         set -euo pipefail
         ROOT="''${KUGELMATCH_SRC:-}"
@@ -104,7 +112,6 @@
           type = "app";
           program = "${kugelmatch}/bin/kugelmatch";
         };
-        # GPU backend convenience launcher
         kugelmatch-gpu = {
           type = "app";
           program = "${pkgs.writeShellScript "kugelmatch-gpu" ''
@@ -127,16 +134,13 @@
           kugelmatch-run
         ];
 
-        # When entering from the flake, point scripts at this source tree.
         KUGELMATCH_SRC = toString self;
         KUGELMATCH_BUILD = "/tmp/kugelmatch-build";
 
         shellHook = ''
-          echo "KugelMatch dev shell"
-          echo "  kugelmatch-configure   # cmake -S \$KUGELMATCH_SRC -B /tmp/kugelmatch-build"
-          echo "  kugelmatch-run [--gpu] # build + run from source tree"
-          echo "  KUGELMATCH_SRC=$KUGELMATCH_SRC"
-          echo "  KUGELMATCH_BUILD=$KUGELMATCH_BUILD"
+          echo "KugelMatch dev shell (VERSION=$(cat "$KUGELMATCH_SRC/VERSION" 2>/dev/null || echo '?'))"
+          echo "  kugelmatch-configure   # cmake → /tmp/kugelmatch-build"
+          echo "  kugelmatch-run [--gpu] # build + run"
         '';
       };
     };

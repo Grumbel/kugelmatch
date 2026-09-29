@@ -1,0 +1,9 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>
+#pragma once
+
+// Generated from VERSION / -DPROJECT_VERSION_FULL at configure time.
+#define KUGELMATCH_VERSION_STRING "@PROJECT_VERSION_FULL@"
+#define KUGELMATCH_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define KUGELMATCH_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define KUGELMATCH_VERSION_PATCH @PROJECT_VERSION_PATCH@

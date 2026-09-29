@@ -1,7 +1,60 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 cmake_minimum_required(VERSION 3.16)
-project(kugelmatch VERSION 1.2.12 LANGUAGES CXX)
+
+# Source of truth: top-level VERSION (e.g. "1.2.14-dev"), or
+# -DPROJECT_VERSION_FULL=... from packaging (Nix may append .<revCount>+g<rev>).
+if(NOT DEFINED PROJECT_VERSION_FULL)
+  file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" PROJECT_VERSION_FULL LIMIT_COUNT 1)
+  # Local -dev builds: append git rev count + short hash when available.
+  if(PROJECT_VERSION_FULL MATCHES "-dev")
+    find_package(Git QUIET)
+    if(Git_FOUND)
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-list --count HEAD
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        OUTPUT_VARIABLE _km_rev_count
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+      )
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-parse --short=7 HEAD
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        OUTPUT_VARIABLE _km_short_rev
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+      )
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" diff --quiet
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE _km_dirty
+        ERROR_QUIET
+      )
+      if(_km_rev_count STREQUAL "")
+        set(_km_rev_count "0")
+      endif()
+      if(_km_short_rev STREQUAL "")
+        set(_km_short_rev "dirty")
+      endif()
+      set(_km_dirty_suf "")
+      if(NOT _km_dirty EQUAL 0)
+        set(_km_dirty_suf "-dirty")
+      endif()
+      set(PROJECT_VERSION_FULL
+          "${PROJECT_VERSION_FULL}.${_km_rev_count}+g${_km_short_rev}${_km_dirty_suf}")
+    endif()
+  endif()
+endif()
+
+# project() needs a numeric version; strip -dev / +git / similar suffixes.
+string(REGEX MATCH "^[0-9]+(\\.[0-9]+)*" _project_version_cmake "${PROJECT_VERSION_FULL}")
+if(_project_version_cmake STREQUAL "")
+  set(_project_version_cmake "0.0.0")
+endif()
+
+project(kugelmatch VERSION ${_project_version_cmake} LANGUAGES CXX)
+
+message(STATUS "KugelMatch version: ${PROJECT_VERSION_FULL} (CMake ${PROJECT_VERSION})")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -24,6 +77,13 @@ find_package(OpenGL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
 
+# Generated version header (only source of truth for the string at compile time).
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/version.hpp.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/include/version.hpp"
+  @ONLY
+)
+
 add_executable(kugelmatch
   src/main.cpp
   src/raytracer.cpp
@@ -35,6 +95,7 @@ add_executable(kugelmatch
 )
 
 target_include_directories(kugelmatch PRIVATE
+  ${CMAKE_CURRENT_BINARY_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${SDL2_INCLUDE_DIRS}
