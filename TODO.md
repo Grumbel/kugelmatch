@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — v1.2.6 clean attract + volume persist
+**Tip:** `2a845d4` — v1.2.6 clean attract + volume persist
 
 ## Done
 
