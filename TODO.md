@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — themes, exposure keys, goal replay cam
+**Tip:** `eb7be1e` — themes, exposure keys, goal replay
 
 ## Done
 
