@@ -1266,27 +1266,27 @@ void Game::buildScene() {
         }
     }
 
-    // Wall-mounted decos (theme-tinted)
-    const float wallL = -FIELD_W * 0.5f;
-    const float wallR = FIELD_W * 0.5f;
-    const float wallB = FIELD_L + 0.5f;
-    // themeMix / colP / colF already computed above
+    // Ceiling-mounted decorative orbs (theme-tinted).
+    // Kept off walls and floor so the playfield stays clear for play.
+    // Y is set just under the ceiling plane; XY spread avoids the scoreboard.
     struct DecoSpec {
-        Vec3 center;
+        Vec3 center; // y overwritten to sit under the ceiling
         float radius;
         Vec3 color;
         float reflectivity;
     };
     DecoSpec decos[] = {
-        {Vec3(wallL + 0.28f, 1.6f, 3.5f), 0.35f, Vec3(0.9f, 0.55f, 0.2f), 0.65f},
-        {Vec3(wallL + 0.22f, 2.2f, 8.0f), 0.28f, Vec3(0.85f, 0.3f, 0.45f), 0.7f},
-        {Vec3(wallL + 0.32f, 1.1f, 13.0f), 0.4f, Vec3(0.4f, 0.75f, 0.95f), 0.6f},
-        {Vec3(wallR - 0.28f, 1.8f, 5.0f), 0.32f, Vec3(0.3f, 0.7f, 0.9f), 0.65f},
-        {Vec3(wallR - 0.25f, 2.4f, 10.5f), 0.3f, Vec3(0.95f, 0.85f, 0.35f), 0.55f},
-        {Vec3(wallR - 0.35f, 1.3f, 14.2f), 0.38f, Vec3(0.7f, 0.4f, 0.85f), 0.7f},
-        {Vec3(0.0f, 2.15f, wallB - 0.3f), 0.4f, Vec3(0.95f, 0.55f, 0.4f), 0.65f},
+        {Vec3(-2.6f, 0.0f, 2.5f), 0.30f, Vec3(0.9f, 0.55f, 0.2f), 0.65f},
+        {Vec3(2.5f, 0.0f, 3.2f), 0.26f, Vec3(0.3f, 0.7f, 0.9f), 0.65f},
+        {Vec3(-1.8f, 0.0f, 5.5f), 0.28f, Vec3(0.85f, 0.3f, 0.45f), 0.7f},
+        {Vec3(2.2f, 0.0f, 6.0f), 0.24f, Vec3(0.95f, 0.85f, 0.35f), 0.55f},
+        {Vec3(-2.4f, 0.0f, 10.5f), 0.32f, Vec3(0.4f, 0.75f, 0.95f), 0.6f},
+        {Vec3(2.3f, 0.0f, 11.2f), 0.28f, Vec3(0.7f, 0.4f, 0.85f), 0.7f},
+        {Vec3(-1.5f, 0.0f, 14.0f), 0.30f, Vec3(0.95f, 0.55f, 0.4f), 0.65f},
+        {Vec3(1.6f, 0.0f, 13.5f), 0.26f, Vec3(0.55f, 0.9f, 0.7f), 0.6f},
     };
     for (auto& d : decos) {
+        d.center.y = WALL_H - d.radius - 0.08f;
         // Blend base deco color toward theme palette
         d.color = d.color * 0.35f + themeMix * 0.4f + colP * 0.25f;
         Sphere s;

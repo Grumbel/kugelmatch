@@ -5,7 +5,11 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
-## 1.2.6
+## 1.2.7
+
+- Move decorative spheres from walls onto the ceiling (clear playfield)
+
+
 
 - ESC from Pause/GameOver enters a clean attract (clears scores, banners, replay)
 - Persist volume when releasing +/- volume keys
