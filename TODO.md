@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — match-point light, serve countdown, vsync
+**Tip:** `e739c66` — match-point, countdown, vsync
 
 ## Done
 
