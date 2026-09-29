@@ -6,7 +6,7 @@ in vec2 v_uv;
 out vec4 fragColor;
 
 #define MAX_SPHERES 16
-#define MAX_BOXES   128
+#define MAX_BOXES   512
 #define MAX_PLANES  12
 
 uniform vec3 u_camPos;

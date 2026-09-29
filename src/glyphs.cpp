@@ -19,8 +19,9 @@ void pushBox(Scene& scene, const Vec3& minb, const Vec3& maxb, const Vec3& color
 }
 
 constexpr int kSegMask[10] = {
-    0b1110111, 0b0010010, 0b1011101, 0b1011011, 0b0111010,
-    0b1101011, 0b1101111, 0b1010010, 0b1111111, 0b1111011,
+    // bit6=a top, 5=b UR, 4=c LR, 3=d bot, 2=e LL, 1=f UL, 0=g mid
+    0b1111110, 0b0110000, 0b1101101, 0b1111001, 0b0110011,
+    0b1011011, 0b1011111, 0b1110000, 0b1111111, 0b1111011,
 };
 
 // 5×7 bitmaps — row 0 is top; bit 4 is leftmost
@@ -107,7 +108,7 @@ void addWord(Scene& scene, const char* word, float originX, float originY,
                     float x0 = ox + c * cell;
                     float y0 = originY + (6 - r) * cell;
                     pushBox(scene, Vec3(x0, y0, originZ),
-                            Vec3(x0 + cell * 0.85f, y0 + cell * 0.85f, originZ + cell * 0.7f),
+                            Vec3(x0 + cell * 0.95f, y0 + cell * 0.95f, originZ + cell * 0.85f),
                             color, reflectivity);
                 }
             }
@@ -132,13 +133,14 @@ void addDigit7(Scene& scene, float ox, float oy, float oz, int digit,
                 Vec3(ox + x1, oy + y1, oz + d * 0.5f), color, reflectivity);
     };
 
+    // a top, b upper-right, c lower-right, d bottom, e lower-left, f upper-left, g middle
     seg(0b1000000, -w * 0.5f, h - t, w * 0.5f, h);
-    seg(0b0000010, w * 0.5f - t, 0.0f, w * 0.5f, h - t);
-    seg(0b0000100, w * 0.5f - t, -h, w * 0.5f, 0.0f);
-    seg(0b0000001, -w * 0.5f, -h, w * 0.5f, -h + t);
-    seg(0b0001000, -w * 0.5f, -h, -w * 0.5f + t, 0.0f);
-    seg(0b0100000, -w * 0.5f, 0.0f, -w * 0.5f + t, h - t);
-    seg(0b0010000, -w * 0.5f, -t * 0.5f, w * 0.5f, t * 0.5f);
+    seg(0b0100000, w * 0.5f - t, 0.0f, w * 0.5f, h - t);
+    seg(0b0010000, w * 0.5f - t, -h, w * 0.5f, 0.0f);
+    seg(0b0001000, -w * 0.5f, -h, w * 0.5f, -h + t);
+    seg(0b0000100, -w * 0.5f, -h, -w * 0.5f + t, 0.0f);
+    seg(0b0000010, -w * 0.5f, 0.0f, -w * 0.5f + t, h - t);
+    seg(0b0000001, -w * 0.5f, -t * 0.5f, w * 0.5f, t * 0.5f);
 }
 
 } // namespace glyphs

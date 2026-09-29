@@ -14,7 +14,7 @@
 
       kugelmatch = pkgs.stdenv.mkDerivation {
         pname = "kugelmatch";
-        version = "1.2.12";
+        version = "1.2.13";
         src = ./.;
 
         nativeBuildInputs = with pkgs; [

@@ -74,7 +74,9 @@ struct Camera {
     void set(const Vec3& position, const Vec3& lookAt, const Vec3& worldUp, float fovDeg) {
         pos = position;
         forward = (lookAt - position).normalized();
-        right = forward.cross(worldUp).normalized();
+        // Right-handed view basis: screen-right = worldUp × forward.
+        // (forward × worldUp flips X and mirrors in-world text.)
+        right = worldUp.cross(forward).normalized();
         up = right.cross(forward).normalized();
         float fovRad = fovDeg * 3.14159265f / 180.0f;
         fovScale = std::tan(fovRad * 0.5f);

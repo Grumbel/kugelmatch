@@ -5,7 +5,16 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
-## 1.2.12
+## 1.2.13
+
+- Fix mirrored view/text: camera right = worldUp × forward
+- Attract/intro/game-over/replay cameras stay inside the room and orbit the ball or scoreboard
+- Scoreboard digits on the player-facing face
+- Correct 7-segment bit→geometry mapping; denser letter voxels
+- Raise GPU MAX_BOXES to 512 so banner text is not truncated
+- Align paddle controls with corrected camera axes
+
+
 
 - Linux packaging: man page, CMake install, .desktop, SVG icon, AppStream metainfo
 - flake apps (`nix run`, `nix run .#kugelmatch-gpu`) and dev-shell helpers

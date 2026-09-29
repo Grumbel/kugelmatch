@@ -720,30 +720,31 @@ void Game::handleInput(float dt) {
         return;
     }
 
-    // Play: P1 uses A/D (and arrows if single-player)
+    // Play: P1 uses A/D (and arrows if single-player).
+    // Paddle camera looks down +Z → screen-left is -X.
     float speed = 9.0f;
     float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
 
     if (keys[SDL_SCANCODE_A]) {
-        playerX_ += speed * dt;
+        playerX_ -= speed * dt;
     }
     if (keys[SDL_SCANCODE_D]) {
-        playerX_ -= speed * dt;
+        playerX_ += speed * dt;
     }
     if (!twoPlayer_) {
         if (keys[SDL_SCANCODE_LEFT]) {
-            playerX_ += speed * dt;
-        }
-        if (keys[SDL_SCANCODE_RIGHT]) {
             playerX_ -= speed * dt;
         }
+        if (keys[SDL_SCANCODE_RIGHT]) {
+            playerX_ += speed * dt;
+        }
     } else {
-        // P2 (far paddle): arrow keys
+        // P2 shares the same screen axes
         if (keys[SDL_SCANCODE_LEFT]) {
-            player2X_ += speed * dt;
+            player2X_ -= speed * dt;
         }
         if (keys[SDL_SCANCODE_RIGHT]) {
-            player2X_ -= speed * dt;
+            player2X_ += speed * dt;
         }
         player2X_ = std::max(-half, std::min(half, player2X_));
     }
@@ -1039,13 +1040,13 @@ void Game::addScoreboard(Scene& scene) const {
     pushBox(scene, Vec3(0.95f, boardY + boardH * 0.5f, boardZ - 0.03f),
             Vec3(1.0f, WALL_H, boardZ + 0.03f), Vec3(0.4f, 0.4f, 0.45f), 0.3f);
 
-    // Center divider bar
-    pushBox(scene, Vec3(-0.04f, boardY - 0.35f, boardZ + boardD * 0.5f),
-            Vec3(0.04f, boardY + 0.35f, boardZ + boardD * 0.5f + 0.04f),
+    // Center divider on the player-facing (-Z) side
+    pushBox(scene, Vec3(-0.04f, boardY - 0.35f, boardZ - boardD * 0.5f - 0.04f),
+            Vec3(0.04f, boardY + 0.35f, boardZ - boardD * 0.5f),
             Vec3(0.7f, 0.7f, 0.75f), 0.4f);
 
-    // Scores as 7-segment digits (player left, AI right) — front face of board
-    const float digitZ = boardZ + boardD * 0.5f + 0.06f;
+    // Scores on the player-facing face (toward the near end)
+    const float digitZ = boardZ - boardD * 0.5f - 0.06f;
     const float digitY = boardY;
     Vec3 colPlayer(0.35f, 0.85f, 1.0f);
     Vec3 colAi(1.0f, 0.45f, 0.35f);
@@ -1431,13 +1432,23 @@ void Game::updateCamera(float dt) {
     (void)dt;
     const Vec3 up(0, 1, 0);
 
-    auto orbitCam = [&](float time) {
-        float ang = time * 0.35f;
-        float rad = 11.0f;
-        float height = 4.5f + 0.4f * std::sin(time * 0.5f);
-        Vec3 pos(std::sin(ang) * rad, height, FIELD_L * 0.5f + std::cos(ang) * rad * 0.85f);
-        Vec3 look(0.0f, 0.8f, FIELD_L * 0.5f);
-        camera_.set(pos, look, up, 55.0f);
+    // Keep cinematic cameras inside the room (walls ±FIELD_W/2, z in [0,FIELD_L], y < WALL_H).
+    auto clampInside = [&](Vec3 p) {
+        const float mx = FIELD_W * 0.5f - 0.55f;
+        p.x = std::max(-mx, std::min(mx, p.x));
+        p.y = std::max(0.9f, std::min(WALL_H - 0.35f, p.y));
+        p.z = std::max(0.65f, std::min(FIELD_L - 0.65f, p.z));
+        return p;
+    };
+
+    auto orbitAround = [&](float time, const Vec3& focus, float speed, float rx, float rz,
+                           float yBase, float yAmp, float fov) {
+        float ang = time * speed;
+        Vec3 pos(
+            focus.x + std::sin(ang) * rx,
+            yBase + yAmp * std::sin(time * 0.55f),
+            focus.z + std::cos(ang) * rz);
+        camera_.set(clampInside(pos), focus, up, fov);
     };
 
     auto paddleCam = [&](float sx, float sy) {
@@ -1447,34 +1458,33 @@ void Game::updateCamera(float dt) {
     };
 
     if (state_ == GameState::Attract) {
-        orbitCam(attractTime_);
+        // Orbit the demo ball so the opening shot has a clear subject
+        Vec3 focus(ballX_, BALL_R + 0.4f, ballZ_);
+        orbitAround(attractTime_, focus, 0.45f, 2.4f, 3.2f, 2.2f, 0.25f, 55.0f);
         return;
     }
 
     if (state_ == GameState::GameOver) {
-        // Victory/defeat beat: faster higher orbit, slight bob toward scoreboard
-        float t = gameOverTime_;
-        float ang = t * 0.85f;
-        float rad = 9.0f + 1.5f * std::sin(t * 1.2f);
-        float height = 5.0f + 0.8f * std::sin(t * 2.0f);
-        Vec3 pos(std::sin(ang) * rad, height, FIELD_L * 0.5f + std::cos(ang) * rad * 0.7f);
-        Vec3 look(0.0f, WALL_H - 1.0f, FIELD_L * 0.5f); // look at scoreboard
-        camera_.set(pos, look, up, 52.0f);
+        // Orbit in front of the scoreboard (player-facing side), stay inside
+        Vec3 focus(0.0f, WALL_H - 1.0f, FIELD_L * 0.5f - 0.35f);
+        orbitAround(gameOverTime_, focus, 0.7f, 2.5f, 2.6f, 2.35f, 0.3f, 52.0f);
         return;
     }
 
     if (state_ == GameState::Intro) {
-        // Smoothstep fly-in from orbit pose to paddle cam
+        // Smoothstep fly-in from ball orbit to paddle cam
         float t = introT_;
         t = t * t * (3.0f - 2.0f * t);
-        float ang = attractTime_ * 0.35f;
-        float rad = 11.0f;
-        Vec3 orbitPos(std::sin(ang) * rad, 4.5f, FIELD_L * 0.5f + std::cos(ang) * rad * 0.85f);
-        Vec3 orbitLook(0.0f, 0.8f, FIELD_L * 0.5f);
+        Vec3 focus(ballX_, BALL_R + 0.4f, ballZ_);
+        float ang = attractTime_ * 0.45f;
+        Vec3 orbitPos = clampInside(Vec3(
+            focus.x + std::sin(ang) * 2.4f,
+            2.2f,
+            focus.z + std::cos(ang) * 3.2f));
         Vec3 padPos(playerX_, 1.1f, -0.6f);
         Vec3 padLook(playerX_ * 0.3f, 0.6f, FIELD_L * 0.55f);
         Vec3 pos = orbitPos * (1.0f - t) + padPos * t;
-        Vec3 look = orbitLook * (1.0f - t) + padLook * t;
+        Vec3 look = focus * (1.0f - t) + padLook * t;
         float fov = 55.0f * (1.0f - t) + 70.0f * t;
         camera_.set(pos, look, up, fov);
         return;
@@ -1484,13 +1494,16 @@ void Game::updateCamera(float dt) {
         float dur = std::max(0.2f, replayDuration_);
         float t = 1.0f - (replayTimer_ / dur);
         t = t * t * (3.0f - 2.0f * t);
-        float goalZ = replayTowardPlayer_ ? 0.5f : FIELD_L - 0.5f;
         float spin = slowmoReplay_ ? 0.35f : 0.85f;
         float ang = animTime_ * spin;
-        float rad = slowmoReplay_ ? 5.2f : 4.5f;
-        Vec3 pos(std::sin(ang) * rad, 2.6f + 0.5f * t, goalZ + (replayTowardPlayer_ ? 3.8f : -3.8f));
-        Vec3 look(ballX_ * 0.3f, BALL_R + 0.2f, ballZ_);
-        camera_.set(pos, look, up, slowmoReplay_ ? 48.0f : 55.0f);
+        float rx = slowmoReplay_ ? 2.4f : 2.2f;
+        float rz = slowmoReplay_ ? 2.8f : 2.5f;
+        Vec3 focus(ballX_, BALL_R + 0.25f, ballZ_);
+        Vec3 pos = clampInside(Vec3(
+            focus.x + std::sin(ang) * rx,
+            2.0f + 0.4f * t,
+            focus.z + std::cos(ang) * rz));
+        camera_.set(pos, focus, up, slowmoReplay_ ? 48.0f : 55.0f);
         return;
     }
 
