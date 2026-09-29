@@ -22,7 +22,7 @@ struct AppConfig {
     bool slowmoReplay = true;
     int cpuMaxWidth = 1280;  // clamp CPU RT resolution (0 = unlimited)
     int cpuMaxHeight = 720;
-    float cpuScale = 1.0f; // RT scale before clamp (e.g. 1.5 supersample)
+    float cpuScale = 1.0f; // render scale (cpu_scale / render_scale); applies to CPU + GPU
     int quality = 2; // 0 low 1 medium 2 high 3 ultra
 };
 

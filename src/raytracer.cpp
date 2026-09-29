@@ -47,10 +47,11 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
     }
 
     for (const auto& box : scene.boxes) {
-        Vec3 invDir(
-            1.0f / ray.dir.x,
-            1.0f / ray.dir.y,
-            1.0f / ray.dir.z);
+        // Safe reciprocal: zero dir components → no hit on that axis slab
+        auto safeInv = [](float d) {
+            return (std::fabs(d) < 1e-8f) ? 1e8f : (1.0f / d);
+        };
+        Vec3 invDir(safeInv(ray.dir.x), safeInv(ray.dir.y), safeInv(ray.dir.z));
         float t1 = (box.minb.x - ray.origin.x) * invDir.x;
         float t2 = (box.maxb.x - ray.origin.x) * invDir.x;
         float t3 = (box.minb.y - ray.origin.y) * invDir.y;
@@ -74,11 +75,14 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
         Vec3 center = (box.minb + box.maxb) * 0.5f;
         Vec3 d = best.point - center;
         Vec3 halfExtent = (box.maxb - box.minb) * 0.5f;
-        float bias = 1.0001f;
+        auto face = [](float v, float h) {
+            float ah = std::max(std::fabs(h), 1e-6f);
+            return static_cast<float>(static_cast<int>(v / ah * 1.0001f));
+        };
         best.normal = Vec3(
-            static_cast<float>(static_cast<int>(d.x / std::abs(halfExtent.x) * bias)),
-            static_cast<float>(static_cast<int>(d.y / std::abs(halfExtent.y) * bias)),
-            static_cast<float>(static_cast<int>(d.z / std::abs(halfExtent.z) * bias))).normalized();
+            face(d.x, halfExtent.x),
+            face(d.y, halfExtent.y),
+            face(d.z, halfExtent.z)).normalized();
         best.color = box.color;
         best.reflectivity = box.reflectivity;
         best.hit = true;

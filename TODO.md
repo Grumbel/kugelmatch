@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `5802e50` — v1.2.3 GPU FBO render scale
+**Tip:** (pending) — v1.2.4 CPU scale buffer fix
 
 ## Done
 
@@ -18,20 +18,22 @@ Base of this work line: `a7bcc21` (Initial checkin)
 - [x] Version **1.2.2**
 - [x] GPU-side resolution scale FBO (shared with quality / `cpu_scale`)
 - [x] Version **1.2.3**
+- [x] Fix CPU framebuffer size vs window size when scaled
+- [x] Fix vsync recreate double-scale
+- [x] `render_scale` config alias
+- [x] Version **1.2.4**
 
 ## Open / follow-ups
 
 - [ ] Tag releases on upstream
-- [ ] Consider renaming config `cpu_scale` → `render_scale` (keep alias)
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous tip commit before this work: `7a1210c`
-This bundle: `kugelmatch-027.1-gpu-fbo-scale-a7bcc21.bundle`
+Previous: `kugelmatch-027.1-gpu-fbo-scale-a7bcc21.bundle`
+This: `kugelmatch-028.1-cpu-scale-fix-a7bcc21.bundle`
 
 ## Notes
 
-- Quality sets maxBounces, shadowSamples, render scale together
-- GPU uses FBO when RT size differs from drawable (scale ≠ 1 or max clamp)
-- `GpuRaytracer::setRenderScale` / `setMaxResolution`; `Game::syncGpuScale()`
+- CPU render must use fbW_/fbH_ after ensureCpuFramebuffer (scale/clamp)
+- Vsync CPU recreate must pass *window* size into ensureCpuFramebuffer

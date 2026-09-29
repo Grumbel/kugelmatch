@@ -114,7 +114,7 @@ bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {
             cfg.cpuMaxWidth = std::atoi(val.c_str());
         } else if (key == "cpu_max_height") {
             cfg.cpuMaxHeight = std::atoi(val.c_str());
-        } else if (key == "cpu_scale") {
+        } else if (key == "cpu_scale" || key == "render_scale") {
             cfg.cpuScale = std::strtof(val.c_str(), nullptr);
         } else if (key == "quality") {
             cfg.quality = std::atoi(val.c_str());
@@ -166,7 +166,8 @@ bool saveConfig(const AppConfig& cfg, std::string* savedTo) {
     out << "slowmo_replay=" << (cfg.slowmoReplay ? 1 : 0) << "\n";
     out << "cpu_max_width=" << cfg.cpuMaxWidth << "\n";
     out << "cpu_max_height=" << cfg.cpuMaxHeight << "\n";
-    out << "cpu_scale=" << cfg.cpuScale << "\n";
+    out << "render_scale=" << cfg.cpuScale << "\n";
+    out << "cpu_scale=" << cfg.cpuScale << "\n"; // alias
     out << "quality=" << cfg.quality << "\n";
     return true;
 }

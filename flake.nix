@@ -15,7 +15,7 @@
     {
       packages.${system}.default = pkgs.stdenv.mkDerivation {
         pname = "kugelmatch";
-        version = "1.2.3";
+        version = "1.2.4";
         src = ./.;
 
         nativeBuildInputs = with pkgs; [

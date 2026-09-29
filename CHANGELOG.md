@@ -5,6 +5,13 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
+## 1.2.4
+
+- Fix CPU path writing past framebuffer when render scale ≠ 1 (use fbW/fbH)
+- Fix vsync toggle double-applying cpu_scale on CPU backend
+- Safe AABB invDir / thin-box normals in CPU raytracer
+- Config accepts `render_scale` (written alongside `cpu_scale` alias)
+
 ## 1.2.3
 
 - GPU render scale via FBO (quality presets / `cpu_scale` apply to both backends)

@@ -1556,7 +1556,8 @@ void Game::run() {
                     applyVsync();
                     // CPU vsync requires renderer recreate
                     if (backend_ == RenderBackend::Cpu) {
-                        int w = fbW_, h = fbH_;
+                        int winW = 0, winH = 0;
+                        SDL_GetWindowSize(window_, &winW, &winH);
                         if (texture_) {
                             SDL_DestroyTexture(texture_);
                             texture_ = nullptr;
@@ -1572,7 +1573,8 @@ void Game::run() {
                             sdlRenderer_ = SDL_CreateRenderer(window_, -1, 0);
                         }
                         fbW_ = fbH_ = 0;
-                        ensureCpuFramebuffer(std::max(1, w), std::max(1, h));
+                        // Window size — ensureCpuFramebuffer applies scale itself
+                        ensureCpuFramebuffer(std::max(1, winW), std::max(1, winH));
                     }
                     audio_.playSoftThud(vsync_ ? 1.0f : 0.7f, 0.2f);
                     persistConfig();
@@ -1603,15 +1605,16 @@ void Game::run() {
             gpuRt_.render(scene_, camera_);
             gpuRt_.present();
         } else {
-            int w = 0, h = 0;
-            SDL_GetWindowSize(window_, &w, &h);
-            w = std::max(1, w);
-            h = std::max(1, h);
-            if (!ensureCpuFramebuffer(w, h)) {
+            int winW = 0, winH = 0;
+            SDL_GetWindowSize(window_, &winW, &winH);
+            winW = std::max(1, winW);
+            winH = std::max(1, winH);
+            if (!ensureCpuFramebuffer(winW, winH)) {
                 running_ = false;
                 break;
             }
-            cpuRt_.render(scene_, camera_, framebuffer_, w, h);
+            // Framebuffer size may differ from window (cpuScale / max clamp)
+            cpuRt_.render(scene_, camera_, framebuffer_, fbW_, fbH_);
             presentCpu();
         }
         updateHud();
