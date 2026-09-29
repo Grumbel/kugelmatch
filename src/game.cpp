@@ -488,15 +488,15 @@ void Game::applyConfig(const AppConfig& cfg) {
     if (exposure_ > 3.0f) exposure_ = 3.0f;
     theme_ = static_cast<Theme>(std::max(0, std::min(3, cfg.theme)));
     quality_ = static_cast<Quality>(std::max(0, std::min(3, cfg.quality)));
-    // quality applied after other fields via applyQualityPreset when cycling;
-    // on load, trust explicit bounces/shadows/scale if present — still sync preset index
     slowmoReplay_ = cfg.slowmoReplay;
     cpuMaxWidth_ = cfg.cpuMaxWidth;
     cpuMaxHeight_ = cfg.cpuMaxHeight;
-    // Prefer explicit quality preset for bounces/shadows/scale when loading
+    // Start from the named preset (scale + defaults), then re-apply explicit
+    // bounces/shadows/scale from the file so custom values survive.
     applyQualityPreset();
-    // Allow file to override scale if set unusually — re-read after preset
-    if (cfg.cpuScale != 1.0f) {
+    maxBounces_ = std::max(0, std::min(3, cfg.maxBounces));
+    shadowSamples_ = std::max(1, std::min(8, cfg.shadowSamples));
+    if (cfg.cpuScale > 0.0f) {
         cpuScale_ = cfg.cpuScale;
     }
     if (cpuScale_ < 0.25f) cpuScale_ = 0.25f;
@@ -1231,7 +1231,11 @@ void Game::buildScene() {
     scene_.boxes.push_back(aiPad);
 
     addScoreboard(scene_);
-    addOptionsGeometry(scene_);
+    // Options markers live on the near floor — hide them during play so the
+    // court stays clear (still visible in attract / pause for settings).
+    if (state_ == GameState::Attract || state_ == GameState::Pause) {
+        addOptionsGeometry(scene_);
+    }
     if (state_ == GameState::Attract || state_ == GameState::GameOver) {
         addTitleGeometry(scene_);
     }
@@ -1562,6 +1566,7 @@ void Game::run() {
                     break;
                 case SDLK_m:
                     audio_.toggleMute();
+                    persistConfig();
                     break;
                 case SDLK_F11:
                     toggleFullscreen();

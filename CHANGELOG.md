@@ -5,7 +5,13 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
-## 1.2.7
+## 1.2.8
+
+- Hide options geometry during play (attract/pause only) for a clear court
+- Persist mute on M
+- Config load keeps explicit bounces/shadow samples after quality preset
+
+
 
 - Move decorative spheres from walls onto the ceiling (clear playfield)
 
