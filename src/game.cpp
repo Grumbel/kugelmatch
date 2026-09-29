@@ -562,9 +562,13 @@ void Game::updateDemo(float dt) {
     if (ballX_ < -wall) {
         ballX_ = -wall;
         ballVX_ = -ballVX_;
+        audio_.playClank(0.9f, 0.18f);
+        ballFlash_ = 0.08f;
     } else if (ballX_ > wall) {
         ballX_ = wall;
         ballVX_ = -ballVX_;
+        audio_.playClank(0.9f, 0.18f);
+        ballFlash_ = 0.08f;
     }
 
     float pz = 0.4f;
@@ -574,6 +578,8 @@ void Game::updateDemo(float dt) {
         ballZ_ = pz + PADDLE_D * 0.5f + BALL_R;
         ballVZ_ = std::abs(ballVZ_);
         ballVX_ += (ballX_ - playerX_) * 1.5f;
+        audio_.playClank(1.05f, 0.22f);
+        ballFlash_ = 0.1f;
     }
     float az = FIELD_L - 0.4f;
     if (ballZ_ + BALL_R > az - PADDLE_D * 0.5f && ballVZ_ > 0.0f &&
@@ -582,6 +588,8 @@ void Game::updateDemo(float dt) {
         ballZ_ = az - PADDLE_D * 0.5f - BALL_R;
         ballVZ_ = -std::abs(ballVZ_);
         ballVX_ += (ballX_ - player2X_) * 1.5f;
+        audio_.playClank(0.85f, 0.2f);
+        ballFlash_ = 0.1f;
     }
     // Wrap if escapes
     if (ballZ_ < -2.0f || ballZ_ > FIELD_L + 2.0f) {
@@ -599,11 +607,35 @@ void Game::startMatch() {
     introT_ = 0.0f;
     attractTime_ = 0.0f;
     replayTimer_ = 0.0f;
+    serveTimer_ = 0.0f;
     for (int i = 0; i < TRAIL_LEN; ++i) {
         trailX_[i] = 0.0f;
         trailZ_[i] = FIELD_L * 0.5f;
     }
     queueServe(false);
+}
+
+void Game::enterAttract() {
+    // Clean slate so scoreboard / banners do not linger from a paused or finished match
+    state_ = GameState::Attract;
+    attractTime_ = 0.0f;
+    introT_ = 0.0f;
+    replayTimer_ = 0.0f;
+    serveTimer_ = 0.0f;
+    gameOverTime_ = 0.0f;
+    playerScore_ = 0;
+    aiScore_ = 0;
+    playerX_ = 0.0f;
+    player2X_ = 0.0f;
+    shake_ = 0.0f;
+    ballFlash_ = 0.0f;
+    resetBall(false);
+    ballVZ_ *= 0.7f;
+    ballVX_ *= 0.7f;
+    for (int i = 0; i < TRAIL_LEN; ++i) {
+        trailX_[i] = ballX_;
+        trailZ_[i] = ballZ_;
+    }
 }
 
 void Game::handleInput(float dt) {
@@ -1494,6 +1526,10 @@ void Game::run() {
                 case SDLK_9:
                 case SDLK_LEFTBRACKET:
                 case SDLK_RIGHTBRACKET:
+                case SDLK_EQUALS:
+                case SDLK_KP_PLUS:
+                case SDLK_MINUS:
+                case SDLK_KP_MINUS:
                     persistConfig();
                     break;
                 default:
@@ -1507,13 +1543,11 @@ void Game::run() {
                     if (state_ == GameState::Play) {
                         state_ = GameState::Pause;
                     } else if (state_ == GameState::Pause) {
-                        state_ = GameState::Attract;
-                        attractTime_ = 0.0f;
+                        enterAttract();
                     } else if (state_ == GameState::Attract) {
                         running_ = false;
                     } else if (state_ == GameState::GameOver) {
-                        state_ = GameState::Attract;
-                        attractTime_ = 0.0f;
+                        enterAttract();
                     } else if (state_ == GameState::Intro) {
                         state_ = GameState::Play;
                         introT_ = 1.0f;

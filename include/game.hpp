@@ -142,6 +142,7 @@ private:
     void resetBall(bool towardPlayer);
     void queueServe(bool towardPlayer);
     void startMatch();
+    void enterAttract();
     void updateDemo(float dt);
     void update(float dt);
     void handleInput(float dt);

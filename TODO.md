@@ -9,15 +9,15 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** `b5ea9aa` — v1.2.5 physics substeps + quality label
+**Tip:** (pending) — v1.2.6 clean attract + volume persist
 
 ## Done
 
-- [x] v1.2.1–1.2.4 (pause, quality, GPU FBO scale, CPU scale buffer fix)
-- [x] Physics substeps (anti-tunnel)
-- [x] Quality HUD CUST when settings diverge
-- [x] Intro orbit continuity
-- [x] Version **1.2.5**
+- [x] v1.2.1–1.2.5
+- [x] `enterAttract()` cleans match state
+- [x] Volume key-up persists config
+- [x] Attract demo hit audio (quiet)
+- [x] Version **1.2.6**
 
 ## Open / follow-ups
 
@@ -26,10 +26,9 @@ Base of this work line: `a7bcc21` (Initial checkin)
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-028.1-cpu-scale-fix-a7bcc21.bundle`
-This: `kugelmatch-029.1-physics-quality-label-a7bcc21.bundle`
+Previous: `kugelmatch-029.1-physics-quality-label-a7bcc21.bundle`
+This: `kugelmatch-030.1-clean-attract-a7bcc21.bundle`
 
 ## Notes
 
-- Substep count capped at 8; step distance ~0.45 * paddle depth
-- `qualityLabel()` matches preset table or returns CUST
+- Always use `enterAttract()` when leaving a match for the title loop
