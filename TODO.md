@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** (pending) — v1.2.8 playfield options gate + config/mute fixes
+**Tip:** `8547a87` — v1.2.8 playfield options gate + config/mute fixes
 
 ## Done
 
