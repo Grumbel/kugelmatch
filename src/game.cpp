@@ -800,6 +800,7 @@ void Game::update(float dt) {
             float tt = (FIELD_L - ballZ_) / std::max(0.1f, ballVZ_);
             target = ballX_ + ballVX_ * tt * pred;
         }
+        target = std::max(-half, std::min(half, target));
         if (player2X_ < target - 0.15f) {
             player2X_ += aiSpeed * dt;
         } else if (player2X_ > target + 0.15f) {
@@ -1004,11 +1005,14 @@ void Game::addGameOverBanner(Scene& scene) const {
     if (state_ != GameState::GameOver) {
         return;
     }
-    const char* word = playerWon_ ? "WIN" : "LOSE";
+    const char* word = playerWon_ ? "WIN" : (twoPlayer_ ? "P2" : "LOSE");
     float pulse = 0.5f + 0.5f * std::sin(gameOverTime_ * 5.0f);
     float cell = 0.16f + 0.03f * pulse;
     float gap = 0.2f;
-    int len = playerWon_ ? 3 : 4;
+    int len = 0;
+    for (const char* q = word; *q; ++q) {
+        ++len;
+    }
     float width = len * (5 * cell + gap) - gap;
     float startX = -width * 0.5f;
     float baseY = 2.1f + 0.15f * pulse;
@@ -1258,7 +1262,10 @@ void Game::buildScene() {
     }
     scene_.spheres.push_back(ball);
 
-    if (state_ == GameState::Play && serveTimer_ <= 0.0f && replayTimer_ <= 0.0f) {
+    const bool showTrail =
+        (state_ == GameState::Play && serveTimer_ <= 0.0f && replayTimer_ <= 0.0f) ||
+        (state_ == GameState::Attract && demoActive_);
+    if (showTrail) {
         for (int i = 1; i < TRAIL_LEN; ++i) {
             Sphere g;
             float fade = 1.0f - static_cast<float>(i) / static_cast<float>(TRAIL_LEN);
@@ -1460,7 +1467,13 @@ void Game::updateHud() {
         st = "PAUSE";
         break;
     case GameState::GameOver:
-        st = playerScore_ >= pointsToWin_ ? "YOU WIN — SPACE" : "AI WINS — SPACE";
+        if (playerScore_ >= pointsToWin_) {
+            st = "YOU WIN — SPACE";
+        } else if (twoPlayer_) {
+            st = "P2 WINS — SPACE";
+        } else {
+            st = "AI WINS — SPACE";
+        }
         break;
     default:
         break;

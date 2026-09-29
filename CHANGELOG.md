@@ -5,7 +5,14 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
-## 1.2.8
+## 1.2.9
+
+- 2P game-over HUD/banner: P2 WINS / "P2" instead of AI/LOSE
+- Attract demo shows ball trail
+- AI prediction target clamped to court width
+- Re-sync embedded GPU fragment shader with shaders/raytrace.frag
+
+
 
 - Hide options geometry during play (attract/pause only) for a clear court
 - Persist mute on M
