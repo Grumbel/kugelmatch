@@ -5,7 +5,12 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 # Changelog
 
-## 1.2.10
+## 1.2.11
+
+- Debounce window resize (~100ms settle) so CPU textures / GPU FBOs are not
+  rebuilt on every drag sample (fixes multi-second hitch while resizing)
+
+
 
 - Fix A/D and arrow paddle controls (screen-left = -X with paddle camera)
 - Soft-limit ball angle after paddle hits (min |VZ|, max |VX|/|VZ|)

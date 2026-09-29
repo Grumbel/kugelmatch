@@ -128,9 +128,7 @@ bool Game::switchBackend(RenderBackend next) {
     } else if (w > 0 && h > 0) {
         SDL_SetWindowSize(window_, w, h);
     }
-    if (backend_ == RenderBackend::Gpu) {
-        gpuRt_.onResize(w, h);
-    }
+    applyWindowSize(std::max(1, w), std::max(1, h));
     return true;
 }
 
@@ -166,6 +164,61 @@ bool Game::ensureCpuFramebuffer(int w, int h) {
         return false;
     }
     return true;
+}
+
+void Game::noteWindowSize(int w, int h) {
+    w = std::max(1, w);
+    h = std::max(1, h);
+    if (w == pendingWinW_ && h == pendingWinH_) {
+        return;
+    }
+    pendingWinW_ = w;
+    pendingWinH_ = h;
+    resizeCooldown_ = kResizeSettle;
+}
+
+void Game::applyWindowSize(int w, int h) {
+    w = std::max(1, w);
+    h = std::max(1, h);
+    appliedWinW_ = w;
+    appliedWinH_ = h;
+    pendingWinW_ = w;
+    pendingWinH_ = h;
+    resizeCooldown_ = 0.0f;
+    if (backend_ == RenderBackend::Gpu) {
+        gpuRt_.onResize(w, h);
+    } else {
+        ensureCpuFramebuffer(w, h);
+    }
+}
+
+void Game::flushPendingResize(float dt) {
+    // Poll live window size so we notice drag changes even without events
+    if (window_) {
+        int w = 0, h = 0;
+        SDL_GetWindowSize(window_, &w, &h);
+        w = std::max(1, w);
+        h = std::max(1, h);
+        if (w != pendingWinW_ || h != pendingWinH_) {
+            pendingWinW_ = w;
+            pendingWinH_ = h;
+            resizeCooldown_ = kResizeSettle;
+        }
+    }
+    if (resizeCooldown_ > 0.0f) {
+        resizeCooldown_ -= dt;
+        if (resizeCooldown_ > 0.0f) {
+            return; // still settling — keep rendering at appliedWin*
+        }
+        resizeCooldown_ = 0.0f;
+    }
+    if (pendingWinW_ <= 0 || pendingWinH_ <= 0) {
+        return;
+    }
+    if (pendingWinW_ == appliedWinW_ && pendingWinH_ == appliedWinH_) {
+        return;
+    }
+    applyWindowSize(pendingWinW_, pendingWinH_);
 }
 
 bool Game::init() {
@@ -214,6 +267,12 @@ bool Game::init() {
     scene_.lightColor = Vec3(1.2f, 1.15f, 1.05f);
     scene_.ambient = Vec3(0.12f, 0.12f, 0.15f);
     scene_.skyColor = Vec3(0.02f, 0.02f, 0.05f);
+
+    if (window_) {
+        int w = 0, h = 0;
+        SDL_GetWindowSize(window_, &w, &h);
+        applyWindowSize(std::max(1, w), std::max(1, h));
+    }
 
     running_ = true;
     return true;
@@ -1521,11 +1580,7 @@ void Game::toggleFullscreen() {
     }
     int w = 0, h = 0;
     SDL_GetWindowSize(window_, &w, &h);
-    if (backend_ == RenderBackend::Gpu) {
-        gpuRt_.onResize(w, h);
-    } else {
-        ensureCpuFramebuffer(std::max(1, w), std::max(1, h));
-    }
+    applyWindowSize(std::max(1, w), std::max(1, h));
 }
 
 void Game::run() {
@@ -1541,13 +1596,8 @@ void Game::run() {
             if (e.type == SDL_WINDOWEVENT &&
                 (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
                  e.window.event == SDL_WINDOWEVENT_RESIZED)) {
-                int w = e.window.data1;
-                int h = e.window.data2;
-                if (backend_ == RenderBackend::Gpu) {
-                    gpuRt_.onResize(w, h);
-                } else {
-                    ensureCpuFramebuffer(std::max(1, w), std::max(1, h));
-                }
+                // Debounce: do not rebuild FB/FBO on every drag sample
+                noteWindowSize(e.window.data1, e.window.data2);
             }
             if (e.type == SDL_KEYUP) {
                 switch (e.key.keysym.sym) {
@@ -1707,6 +1757,8 @@ void Game::run() {
             fpsSmooth_ = fpsSmooth_ > 1.0f ? (fpsSmooth_ * 0.9f + inst * 0.1f) : inst;
         }
 
+        flushPendingResize(dt);
+
         handleInput(dt);
         update(dt);
         buildScene();
@@ -1716,10 +1768,15 @@ void Game::run() {
             gpuRt_.render(scene_, camera_);
             gpuRt_.present();
         } else {
-            int winW = 0, winH = 0;
-            SDL_GetWindowSize(window_, &winW, &winH);
-            winW = std::max(1, winW);
-            winH = std::max(1, winH);
+            // Render at last settled window size (not live drag size)
+            int winW = appliedWinW_ > 0 ? appliedWinW_ : 1;
+            int winH = appliedWinH_ > 0 ? appliedWinH_ : 1;
+            if (window_ && appliedWinW_ <= 0) {
+                SDL_GetWindowSize(window_, &winW, &winH);
+                winW = std::max(1, winW);
+                winH = std::max(1, winH);
+                applyWindowSize(winW, winH);
+            }
             if (!ensureCpuFramebuffer(winW, winH)) {
                 running_ = false;
                 break;

@@ -77,6 +77,13 @@ private:
     uint32_t* framebuffer_ = nullptr;
     int fbW_ = 0;
     int fbH_ = 0;
+    // Debounced resize: avoid thrashing FB/FBO while the user drags the window
+    int appliedWinW_ = 0;
+    int appliedWinH_ = 0;
+    int pendingWinW_ = 0;
+    int pendingWinH_ = 0;
+    float resizeCooldown_ = 0.0f;
+    static constexpr float kResizeSettle = 0.10f; // seconds after last size change
 
     CpuRaytracer cpuRt_;
     GpuRaytracer gpuRt_;
@@ -172,6 +179,9 @@ private:
     void presentCpu();
     void updateHud();
     void toggleFullscreen();
+    void noteWindowSize(int w, int h);
+    void flushPendingResize(float dt);
+    void applyWindowSize(int w, int h);
     void triggerShake(float amount);
     void updateShake(float dt);
     void updateCamera(float dt);

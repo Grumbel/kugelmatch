@@ -518,8 +518,12 @@ void GpuRaytracer::render(const Scene& scene, const Camera& cam) {
         return;
     }
 
+    // Only re-query drawable size when it may have changed; avoid redundant work.
+    int prevW = drawableW_, prevH = drawableH_;
     syncDrawableSize();
-    recomputeRtSize();
+    if (drawableW_ != prevW || drawableH_ != prevH) {
+        recomputeRtSize();
+    }
 
     if (useFbo_) {
         if (!ensureFbo(rtW_, rtH_)) {
