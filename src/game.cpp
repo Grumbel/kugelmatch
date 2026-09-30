@@ -1726,7 +1726,8 @@ void Game::updateCamera(float dt) {
     const float tauEff = tau + 0.22f * smoothstep01(camGlide_);
 
     cam_.pos = smoothDamp(cam_.pos, target.pos, camPosVel_, tauEff, dt);
-    cam_.look = smoothDamp(cam_.look, target.look, camLookVel_, tauEff, dt);
+    // The aim leads the position a little so the subject stays in view mid-glide.
+    cam_.look = smoothDamp(cam_.look, target.look, camLookVel_, tauEff * 0.55f, dt);
     cam_.fov = smoothDamp(cam_.fov, target.fov, camFovVel_, std::max(0.15f, tauEff), dt);
 
     // ---- gameplay feel: recoil, FOV punch, strafe lean, shake ---------------
