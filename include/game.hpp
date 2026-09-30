@@ -9,6 +9,10 @@
 #include "scene.hpp"
 #include <SDL.h>
 
+#include <string>
+#include <utility>
+#include <vector>
+
 enum class RenderBackend { Cpu, Gpu };
 
 enum class GameState {
@@ -41,10 +45,22 @@ enum class Quality {
     Ultra
 };
 
+/** Non-persistent options for testing / automation (never written to the config file). */
+struct DevOptions {
+    int windowW = 0;                                   // initial window size (0 = default)
+    int windowH = 0;
+    bool autoStart = false;                            // skip attract mode, start a match
+    float fixedDt = 0.0f;                              // > 0: deterministic simulation step (s)
+    int quitAfterFrames = 0;                           // > 0: exit after this many frames
+    std::vector<std::pair<int, std::string>> shots;    // (frame index, BMP path)
+};
+
 class Game {
 public:
     explicit Game(RenderBackend backend);
     ~Game();
+
+    void setDevOptions(const DevOptions& dev) { dev_ = dev; }
 
     /** Load config file, then apply optional CLI overrides (mask bits: CliOverride). */
     bool init(const AppConfig* cli = nullptr, unsigned cliMask = 0);
@@ -105,6 +121,10 @@ private:
     int pointsToWin_ = 11;
 
     bool running_ = false;
+
+    DevOptions dev_;
+    long frameIndex_ = 0;
+    bool screenshotRequested_ = false;
 
     float shake_ = 0.0f;
     float shakeOffsetX_ = 0.0f;
@@ -187,4 +207,7 @@ private:
     void triggerShake(float amount);
     void updateShake(float dt);
     void updateCamera(float dt);
+    void handleScreenshots();
+    bool saveScreenshot(const std::string& path);
+    std::string nextScreenshotPath() const;
 };

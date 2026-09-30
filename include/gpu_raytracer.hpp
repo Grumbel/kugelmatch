@@ -5,6 +5,9 @@
 #include "scene.hpp"
 #include <SDL.h>
 
+#include <cstdint>
+#include <vector>
+
 // OpenGL fragment-shader raytracer. Full analytic RT — no scene meshes.
 // Optional render scale via FBO (undersample / supersample), then blit to
 // the window drawable. Scale is shared with the CPU path quality presets.
@@ -25,6 +28,9 @@ public:
     void shutdown();
     void render(const Scene& scene, const Camera& cam);
     void present();
+    /** Read back the window's back buffer (call after render(), before present()).
+     *  Output is 0xAARRGGBB, top row first. */
+    bool readPixels(std::vector<uint32_t>& argb, int& w, int& h) const;
     void onResize(int windowW, int windowH);
 
     // Render resolution = drawable * scale, clamped to maxW/maxH when > 0.

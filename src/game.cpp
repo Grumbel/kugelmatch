@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <cstdint>
 
 namespace {
 
@@ -47,7 +48,8 @@ bool Game::initWindowAndBackend() {
         window_ = SDL_CreateWindow(
             "KugelMatch",
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-            GpuRaytracer::DEFAULT_WIDTH, GpuRaytracer::DEFAULT_HEIGHT,
+            dev_.windowW > 0 ? dev_.windowW : GpuRaytracer::DEFAULT_WIDTH,
+            dev_.windowH > 0 ? dev_.windowH : GpuRaytracer::DEFAULT_HEIGHT,
             winFlags);
         if (!window_) {
             std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -1608,6 +1610,62 @@ void Game::updateCamera(float dt) {
     }
 }
 
+bool Game::saveScreenshot(const std::string& path) {
+    std::vector<uint32_t> gpuPixels;
+    const uint32_t* pixels = nullptr;
+    int w = 0;
+    int h = 0;
+    if (backend_ == RenderBackend::Gpu) {
+        if (!gpuRt_.readPixels(gpuPixels, w, h)) {
+            return false;
+        }
+        pixels = gpuPixels.data();
+    } else {
+        pixels = framebuffer_;
+        w = fbW_;
+        h = fbH_;
+    }
+    if (!pixels || w <= 0 || h <= 0) {
+        return false;
+    }
+    SDL_Surface* surf = SDL_CreateRGBSurfaceWithFormatFrom(
+        const_cast<uint32_t*>(pixels), w, h, 32, w * static_cast<int>(sizeof(uint32_t)),
+        SDL_PIXELFORMAT_ARGB8888);
+    if (!surf) {
+        return false;
+    }
+    const bool ok = SDL_SaveBMP(surf, path.c_str()) == 0;
+    SDL_FreeSurface(surf);
+    if (ok) {
+        std::fprintf(stderr, "Screenshot saved: %s (%dx%d)\n", path.c_str(), w, h);
+    } else {
+        std::fprintf(stderr, "Screenshot failed: %s\n", SDL_GetError());
+    }
+    return ok;
+}
+
+std::string Game::nextScreenshotPath() const {
+    // ~/Pictures if it exists, else the current directory.
+    std::string dir;
+    if (const char* home = std::getenv("HOME")) {
+        std::string pics = std::string(home) + "/Pictures";
+        if (std::FILE* f = std::fopen((pics + "/.").c_str(), "r")) {
+            std::fclose(f);
+            dir = pics + "/";
+        }
+    }
+    char name[96];
+    std::time_t t = std::time(nullptr);
+    std::tm tmv{};
+#ifdef _WIN32
+    localtime_s(&tmv, &t);
+#else
+    localtime_r(&t, &tmv);
+#endif
+    std::strftime(name, sizeof(name), "kugelmatch-%Y%m%d-%H%M%S.bmp", &tmv);
+    return dir + name;
+}
+
 void Game::presentCpu() {
     SDL_UpdateTexture(texture_, nullptr, framebuffer_,
                       fbW_ * static_cast<int>(sizeof(uint32_t)));
@@ -1676,7 +1734,24 @@ void Game::toggleFullscreen() {
     applyWindowSize(std::max(1, w), std::max(1, h));
 }
 
+void Game::handleScreenshots() {
+    if (screenshotRequested_) {
+        screenshotRequested_ = false;
+        if (saveScreenshot(nextScreenshotPath())) {
+            audio_.playSoftThud(1.4f, 0.15f);
+        }
+    }
+    for (const auto& shot : dev_.shots) {
+        if (shot.first == frameIndex_) {
+            saveScreenshot(shot.second);
+        }
+    }
+}
+
 void Game::run() {
+    if (dev_.autoStart && state_ == GameState::Attract) {
+        startMatch();
+    }
     Uint64 freq = SDL_GetPerformanceFrequency();
     Uint64 last = SDL_GetPerformanceCounter();
 
@@ -1735,6 +1810,9 @@ void Game::run() {
                 case SDLK_m:
                     audio_.toggleMute();
                     persistConfig();
+                    break;
+                case SDLK_F12:
+                    screenshotRequested_ = true;
                     break;
                 case SDLK_F11:
                     toggleFullscreen();
@@ -1845,6 +1923,9 @@ void Game::run() {
         if (dt > 0.05f) {
             dt = 0.05f;
         }
+        if (dev_.fixedDt > 0.0f) {
+            dt = dev_.fixedDt;
+        }
         if (dt > 1e-6f) {
             float inst = 1.0f / dt;
             fpsSmooth_ = fpsSmooth_ > 1.0f ? (fpsSmooth_ * 0.9f + inst * 0.1f) : inst;
@@ -1857,8 +1938,17 @@ void Game::run() {
         buildScene();
         updateCamera(dt);
 
-        if (backend_ == RenderBackend::Gpu) {
+        // With --shot, only frames that are captured get rendered; the simulation
+        // still advances every frame (keeps headless scenario runs fast).
+        bool renderThisFrame = dev_.shots.empty() || screenshotRequested_;
+        for (const auto& shot : dev_.shots) {
+            renderThisFrame = renderThisFrame || shot.first == frameIndex_;
+        }
+        if (!renderThisFrame) {
+            // skip rendering
+        } else if (backend_ == RenderBackend::Gpu) {
             gpuRt_.render(scene_, camera_);
+            handleScreenshots();
             gpuRt_.present();
         } else {
             // Render at last settled window size (not live drag size)
@@ -1876,9 +1966,14 @@ void Game::run() {
             }
             // Framebuffer size may differ from window (cpuScale / max clamp)
             cpuRt_.render(scene_, camera_, framebuffer_, fbW_, fbH_);
+            handleScreenshots();
             presentCpu();
         }
         updateHud();
+        ++frameIndex_;
+        if (dev_.quitAfterFrames > 0 && frameIndex_ >= dev_.quitAfterFrames) {
+            running_ = false;
+        }
 
         // Frame-time cap when vsync is off (optional target_fps)
         if (!vsync_ && targetFps_ > 0) {

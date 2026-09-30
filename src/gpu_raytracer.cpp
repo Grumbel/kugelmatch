@@ -94,6 +94,8 @@ using PFNGLBINDTEXTUREPROC = void (*)(GLenum, GLuint);
 using PFNGLDELETETEXTURESPROC = void (*)(GLsizei, const GLuint*);
 using PFNGLTEXIMAGE2DPROC = void (*)(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void*);
 using PFNGLTEXPARAMETERIPROC = void (*)(GLenum, GLenum, GLint);
+using PFNGLREADPIXELSPROC = void (*)(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*);
+using PFNGLPIXELSTOREIPROC = void (*)(GLenum, GLint);
 using PFNGLBLITFRAMEBUFFERPROC = void (*)(GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLbitfield, GLenum);
 
 PFNGLCREATESHADERPROC glCreateShader_ = nullptr;
@@ -131,6 +133,8 @@ PFNGLDELETETEXTURESPROC glDeleteTextures_ = nullptr;
 PFNGLTEXIMAGE2DPROC glTexImage2D_ = nullptr;
 PFNGLTEXPARAMETERIPROC glTexParameteri_ = nullptr;
 PFNGLBLITFRAMEBUFFERPROC glBlitFramebuffer_ = nullptr;
+PFNGLREADPIXELSPROC glReadPixels_ = nullptr;
+PFNGLPIXELSTOREIPROC glPixelStorei_ = nullptr;
 
 template <typename T>
 bool loadProc(T& fn, const char* name) {
@@ -179,6 +183,8 @@ bool loadAllProcs() {
     ok &= loadProc(glTexImage2D_, "glTexImage2D");
     ok &= loadProc(glTexParameteri_, "glTexParameteri");
     ok &= loadProc(glBlitFramebuffer_, "glBlitFramebuffer");
+    ok &= loadProc(glReadPixels_, "glReadPixels");
+    ok &= loadProc(glPixelStorei_, "glPixelStorei");
     return ok;
 }
 
@@ -565,4 +571,29 @@ void GpuRaytracer::present() {
         return;
     }
     SDL_GL_SwapWindow(window_);
+}
+
+bool GpuRaytracer::readPixels(std::vector<uint32_t>& argb, int& w, int& h) const {
+    if (!ready_) {
+        return false;
+    }
+    w = drawableW_;
+    h = drawableH_;
+    if (w <= 0 || h <= 0) {
+        return false;
+    }
+    std::vector<uint8_t> rgba(static_cast<size_t>(w) * static_cast<size_t>(h) * 4u);
+    glBindFramebuffer_(GL_FRAMEBUFFER, 0);
+    glPixelStorei_(GL_PACK_ALIGNMENT, 1);
+    glReadPixels_(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+    argb.resize(static_cast<size_t>(w) * static_cast<size_t>(h));
+    for (int y = 0; y < h; ++y) {
+        const uint8_t* src = &rgba[static_cast<size_t>(h - 1 - y) * static_cast<size_t>(w) * 4u];
+        uint32_t* dst = &argb[static_cast<size_t>(y) * static_cast<size_t>(w)];
+        for (int x = 0; x < w; ++x) {
+            dst[x] = 0xFF000000u | (static_cast<uint32_t>(src[x * 4]) << 16) |
+                     (static_cast<uint32_t>(src[x * 4 + 1]) << 8) | static_cast<uint32_t>(src[x * 4 + 2]);
+        }
+    }
+    return true;
 }

@@ -48,6 +48,13 @@ void printHelp(const char* argv0) {
         "  --volume F         Master volume 0.0–1.0\n"
         "  --mute / --no-mute\n"
         "\n"
+        "Developer / testing (not saved to the config file):\n"
+        "  --size WxH         Initial window size, e.g. 960x540\n"
+        "  --start            Skip the attract screen and start a match immediately\n"
+        "  --fixed-dt S       Deterministic simulation step in seconds (e.g. 0.0167)\n"
+        "  --shot N:PATH      Save frame N as a BMP screenshot (repeatable)\n"
+        "  --quit-after N     Exit after N frames\n"
+        "\n"
         "Info:\n"
         "  --version          Print version and exit\n"
         "  -h, --help         Show this help\n"
@@ -89,6 +96,8 @@ int main(int argc, char** argv) {
     // or by config file (applied inside Game::init).
     bool backendFromCli = false;
     RenderBackend backend = RenderBackend::Cpu;
+
+    DevOptions dev;
 
     for (int i = 1; i < argc; ++i) {
         const char* a = argv[i];
@@ -236,6 +245,35 @@ int main(int argc, char** argv) {
         } else if (eq(a, "--no-mute")) {
             cli.mute = false;
             mask |= CliOverride::Mute;
+        } else if (eq(a, "--size")) {
+            const char* v = need("--size");
+            if (std::sscanf(v, "%dx%d", &dev.windowW, &dev.windowH) != 2 ||
+                dev.windowW < 64 || dev.windowH < 64) {
+                std::fprintf(stderr, "Invalid --size value '%s' (expected WxH)\n", v);
+                return 2;
+            }
+        } else if (eq(a, "--start")) {
+            dev.autoStart = true;
+        } else if (eq(a, "--fixed-dt")) {
+            if (!parseFloat(need("--fixed-dt"), dev.fixedDt) || dev.fixedDt <= 0.0f) {
+                std::fprintf(stderr, "Invalid --fixed-dt value\n");
+                return 2;
+            }
+        } else if (eq(a, "--quit-after")) {
+            if (!parseInt(need("--quit-after"), dev.quitAfterFrames)) {
+                std::fprintf(stderr, "Invalid --quit-after value\n");
+                return 2;
+            }
+        } else if (eq(a, "--shot")) {
+            const char* v = need("--shot");
+            const char* colon = std::strchr(v, ':');
+            int frame = 0;
+            if (!colon || colon == v || !parseInt(std::string(v, colon).c_str(), frame) ||
+                frame < 0 || !colon[1]) {
+                std::fprintf(stderr, "Invalid --shot value '%s' (expected N:PATH)\n", v);
+                return 2;
+            }
+            dev.shots.emplace_back(frame, std::string(colon + 1));
         } else if (eq(a, "--version")) {
             std::printf("kugelmatch %s\n", KUGELMATCH_VERSION_STRING);
             return 0;
@@ -251,6 +289,7 @@ int main(int argc, char** argv) {
 
     (void)backendFromCli;
     Game game(backend);
+    game.setDevOptions(dev);
     if (!game.init((mask != CliOverride::None) ? &cli : nullptr, mask)) {
         std::fprintf(stderr, "Failed to initialize KugelMatch.\n");
         return 1;
