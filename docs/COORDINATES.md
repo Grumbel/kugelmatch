@@ -31,7 +31,13 @@ KugelMatch uses a **right-handed** world frame.
 | Far paddle (P2 / AI) | `z ≈ FIELD_L − 0.25`, moves along **X** |
 | Ball | `y ≈ BALL_R`, moves in the **X–Z** plane |
 | Scoreboard | Midfield `z = FIELD_L/2`, high under the ceiling; digits face **−Z** (toward P1) |
-| Paddle camera | Near `z ≈ −0.6`, looks toward **+Z** |
+| End walls | Near wall `z = −END_WALL`, far wall `z = FIELD_L + END_WALL` (`END_WALL = 1.6`); goals are scored at `z < −GOAL_MARGIN` / `z > FIELD_L + GOAL_MARGIN` |
+| Paddle camera | Behind and above the paddle (`y ≈ 1.25`, `z ≈ −1.0`), follows the paddle in **X**, looks toward **+Z** |
+| High camera | `y ≈ 3.2`, `z ≈ −2.5` (outside the near wall, which is one-sided) |
+| Sideline camera | Outside the right wall (`x ≈ FIELD_W/2 + 7.6`), looking across the court; walls are one-sided so they do not block the view |
+
+Walls (left, right, near, far) are **one-sided planes**: they are visible from inside the room and
+transparent from behind. Floor and ceiling are two-sided.
 
 Field size constants (`include/game.hpp`): `FIELD_W` (X span), `FIELD_L` (Z span), `WALL_H` (ceiling height).
 

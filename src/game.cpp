@@ -1525,11 +1525,13 @@ void Game::buildScene() {
     if (showTrail) {
         for (int i = 1; i < TRAIL_LEN; ++i) {
             Sphere g;
+            // Luminous tail: bright, barely reflective and shrinking with age. A dim
+            // mirror sphere beside the ball just reads as a black lump.
             float fade = 1.0f - static_cast<float>(i) / static_cast<float>(TRAIL_LEN);
-            g.center = Vec3(trailX_[i], BALL_R * (0.7f + 0.2f * fade), trailZ_[i]);
-            g.radius = BALL_R * (0.55f + 0.25f * fade);
-            g.color = Vec3(0.7f, 0.8f, 1.0f) * (0.35f * fade);
-            g.reflectivity = 0.35f * fade;
+            g.center = Vec3(trailX_[i], BALL_R * (0.55f + 0.3f * fade), trailZ_[i]);
+            g.radius = BALL_R * (0.25f + 0.5f * fade);
+            g.color = Vec3(0.55f, 0.8f, 1.0f) * (0.3f + 1.1f * fade);
+            g.reflectivity = 0.08f;
             scene_.spheres.push_back(g);
         }
     }
@@ -1704,16 +1706,18 @@ void Game::updateCamera(float dt) {
     } else if (state_ == GameState::GameOver) {
         shot = ShotGameOver;
         tau = 0.30f;
+        // Swing through an arc on the readable (player-facing) side of the banner; a full
+        // orbit passed through the letters and showed their mirrored backs.
         Vec3 focus(0.0f, WALL_H - 1.0f, FIELD_L * 0.5f - 0.35f);
-        target = orbitPose(focus, gameOverTime_ * 0.7f, 2.5f, 2.6f,
-                           2.35f + 0.3f * std::sin(gameOverTime_ * 0.55f), 52.0f);
+        target = orbitPose(focus, 3.14159265f + std::sin(gameOverTime_ * 0.45f) * 0.9f, 3.0f, 3.6f,
+                           2.2f + 0.25f * std::sin(gameOverTime_ * 0.55f), 56.0f);
     } else if (state_ == GameState::Intro) {
         shot = ShotIntro;
         tau = 0.08f;
         const float t = smoothstep01(introT_);
         Vec3 focus(ballX_, BALL_R + 0.4f, ballZ_);
         CamPose a = orbitPose(focus, std::sin(attractTime_ * 0.25f) * 1.1f + 0.35f, 2.4f, 3.2f,
-                              2.0f, 55.0f);
+                              2.0f + 0.25f * std::sin(attractTime_ * 0.55f), 55.0f);
         CamPose b = paddlePose();
         target.pos = a.pos * (1.0f - t) + b.pos * t;
         target.look = a.look * (1.0f - t) + b.look * t;

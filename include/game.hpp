@@ -155,7 +155,7 @@ private:
     bool nextServeTowardPlayer_ = false;
     float ballFlash_ = 0.0f;
     static constexpr int TRAIL_LEN = 4;
-    static constexpr float TRAIL_STEP = 0.03f;   // seconds between trail samples
+    static constexpr float TRAIL_STEP = 0.022f;  // seconds between trail samples
     float trailX_[TRAIL_LEN] = {};
     float trailZ_[TRAIL_LEN] = {};
     float trailTimer_ = 0.0f;

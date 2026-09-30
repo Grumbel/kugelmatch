@@ -7,6 +7,35 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 ## Unreleased (1.2.14-dev)
 
+### Camera
+- Camera rig: every shot defines an ideal pose and the view follows it through critically damped
+  smoothing, so replay start/end, camera-mode changes and the intro hand-over glide instead of cutting
+- Paddle camera raised and re-aimed so the whole paddle stays in frame; leans into strafing,
+  widens slightly with ball speed, FOV punch and dolly recoil on paddle hits
+- Sideline camera is now a working broadcast view (it previously looked at the back of a wall);
+  high camera re-aimed so the paddle is visible
+- Screen shake is a deterministic, time-based damped oscillation (was per-frame `rand()` noise)
+- Replay orbit starts on the side facing the action and pushes in
+
+### Animation
+- Serve countdown 0.75 s → 1.35 s with a drop-in per digit; ball grows in while counting down
+- Paddles recoil and flash on hits; score digits pop when the score changes
+- After a goal the ball keeps rolling and thuds into the end wall instead of freezing
+- Ghost trail sampled at a fixed time step (frame-rate independent)
+
+### Rendering
+- Fix GPU last-bounce shading (mirror surfaces were darker on GPU than CPU at bounces 0–1)
+- Analytic anti-aliased checkerboard (ray-footprint filtering through mirror bounces)
+- Robust box normals (dominant axis); one-sided wall planes; real near/far end walls
+  (the ball no longer passes through the back wall before a goal)
+- GPU uniforms: cached locations and bulk array uploads
+- Embedded fallback shader is generated from `shaders/raytrace.frag` at configure time
+
+### Tooling / fixes
+- F12 screenshots; developer flags `--size`, `--start`, `--fixed-dt`, `--shot N:PATH`, `--quit-after`
+- Create `~/.config/kugelmatch/` recursively on first run (settings used to land in the cwd)
+
+### Earlier in this cycle
 - Fix upside-down view: camera `up = forward × right` (was inverted)
 - Document world axes in `docs/COORDINATES.md`
 - Expanded CLI (`--help`): display, quality, match, audio; options override config file

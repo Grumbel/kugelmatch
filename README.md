@@ -29,6 +29,7 @@ Shared look: checkerboard floor + walls, reflective **mirror ball**, camera lock
 | F9 | Toggle slow-mo goal replay |
 | Q / F10 | Cycle quality preset (Low→Ultra) |
 | F11 / Alt+Enter | Fullscreen |
+| F12 | Save a screenshot (BMP) to `~/Pictures` if it exists, else the current directory |
 
 ### Play
 | Key | Action |
