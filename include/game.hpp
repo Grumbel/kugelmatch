@@ -154,9 +154,18 @@ private:
     float serveTimer_ = 0.0f;
     bool nextServeTowardPlayer_ = false;
     float ballFlash_ = 0.0f;
-    static constexpr int TRAIL_LEN = 3;
-    float trailX_[3] = {};
-    float trailZ_[3] = {};
+    static constexpr int TRAIL_LEN = 4;
+    static constexpr float TRAIL_STEP = 0.03f;   // seconds between trail samples
+    float trailX_[TRAIL_LEN] = {};
+    float trailZ_[TRAIL_LEN] = {};
+    float trailTimer_ = 0.0f;
+    void pushTrail(float dt);
+
+    // Short-lived feedback animations (1 → 0)
+    float playerRecoil_ = 0.0f;  // paddle kick-back after hitting the ball
+    float aiRecoil_ = 0.0f;
+    float playerPop_ = 0.0f;     // score digit pop after scoring
+    float aiPop_ = 0.0f;
     float fpsSmooth_ = 0.0f;
 
     float attractTime_ = 0.0f;
@@ -176,7 +185,7 @@ private:
     static constexpr float PADDLE_D = 0.3f;
     static constexpr float BALL_R = 0.35f;
     static constexpr float WALL_H = 3.5f;
-    static constexpr float SERVE_DELAY = 0.75f;
+    static constexpr float SERVE_DELAY = 1.35f;   // 3 - 2 - 1, 0.45 s each
     // Distance from each paddle line to the end wall (near wall at z = -END_WALL,
     // far wall at z = FIELD_L + END_WALL). Goals are scored at GOAL_MARGIN.
     static constexpr float END_WALL = 1.6f;

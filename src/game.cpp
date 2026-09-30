@@ -691,13 +691,7 @@ void Game::updateDemo(float dt) {
     ballX_ += ballVX_ * dt;
     ballZ_ += ballVZ_ * dt;
 
-    // Soft ghost trail (raytraced spheres)
-    for (int i = TRAIL_LEN - 1; i > 0; --i) {
-        trailX_[i] = trailX_[i - 1];
-        trailZ_[i] = trailZ_[i - 1];
-    }
-    trailX_[0] = ballX_;
-    trailZ_[0] = ballZ_;
+    pushTrail(dt);
 
     float wall = FIELD_W * 0.5f - BALL_R;
     if (ballX_ < -wall) {
@@ -720,6 +714,7 @@ void Game::updateDemo(float dt) {
         ballVZ_ = std::abs(ballVZ_);
         ballVX_ += (ballX_ - playerX_) * 1.5f;
         audio_.playClank(1.05f, 0.22f);
+        playerRecoil_ = 0.7f;
         ballFlash_ = 0.1f;
     }
     float az = FIELD_L - 0.4f;
@@ -730,6 +725,7 @@ void Game::updateDemo(float dt) {
         ballVZ_ = -std::abs(ballVZ_);
         ballVX_ += (ballX_ - player2X_) * 1.5f;
         audio_.playClank(0.85f, 0.2f);
+        aiRecoil_ = 0.7f;
         ballFlash_ = 0.1f;
     }
     // Wrap if escapes
@@ -847,6 +843,10 @@ void Game::triggerShake(float amount) {
 
 void Game::updateShake(float dt) {
     shakeAge_ += dt;
+    playerRecoil_ *= std::exp(-dt * 9.0f);
+    aiRecoil_ *= std::exp(-dt * 9.0f);
+    playerPop_ *= std::exp(-dt * 3.2f);
+    aiPop_ *= std::exp(-dt * 3.2f);
     if (shake_ <= 0.001f) {
         shake_ = 0.0f;
         return;
@@ -855,6 +855,28 @@ void Game::updateShake(float dt) {
     if (shake_ < 0.001f) {
         shake_ = 0.0f;
     }
+}
+
+// Soft ghost trail: sampled at a fixed time step so its length does not depend on
+// the frame rate. Entry 0 always tracks the ball; older entries are past positions.
+void Game::pushTrail(float dt) {
+    trailTimer_ += dt;
+    int steps = 0;
+    while (trailTimer_ >= TRAIL_STEP && steps < TRAIL_LEN) {
+        trailTimer_ -= TRAIL_STEP;
+        for (int i = TRAIL_LEN - 1; i > 1; --i) {
+            trailX_[i] = trailX_[i - 1];
+            trailZ_[i] = trailZ_[i - 1];
+        }
+        trailX_[1] = trailX_[0];
+        trailZ_[1] = trailZ_[0];
+        ++steps;
+    }
+    if (trailTimer_ >= TRAIL_STEP) {
+        trailTimer_ = 0.0f;
+    }
+    trailX_[0] = ballX_;
+    trailZ_[0] = ballZ_;
 }
 
 void Game::cameraImpulse(float fovDegrees, float recoil) {
@@ -1064,6 +1086,7 @@ void Game::update(float dt) {
                     audio_.playClank(pitch, 0.75f);
                     triggerShake(0.12f + std::min(0.08f, sp * 0.008f));
                     cameraImpulse(3.5f, 1.0f);
+                    playerRecoil_ = 1.0f;
                     ballFlash_ = 0.2f;
                 }
             }
@@ -1091,6 +1114,7 @@ void Game::update(float dt) {
                     audio_.playClank(0.75f + std::min(0.35f, sp * 0.025f), 0.55f);
                     triggerShake(0.05f);
                     cameraImpulse(1.2f, 0.0f);
+                    aiRecoil_ = 1.0f;
                     ballFlash_ = 0.18f;
                 }
             }
@@ -1100,17 +1124,12 @@ void Game::update(float dt) {
             }
         }
 
-        // Soft ghost trail (once per frame after integration)
-        for (int i = TRAIL_LEN - 1; i > 0; --i) {
-            trailX_[i] = trailX_[i - 1];
-            trailZ_[i] = trailZ_[i - 1];
-        }
-        trailX_[0] = ballX_;
-        trailZ_[0] = ballZ_;
+        pushTrail(dt);
     }
 
     if (ballZ_ < -GOAL_MARGIN) {
         aiScore_++;
+        aiPop_ = 1.0f;
         audio_.playSoftThud(0.6f, 0.35f);
         triggerShake(0.06f);
         // Keep some momentum: the ball rolls on and thuds into the end wall.
@@ -1129,6 +1148,7 @@ void Game::update(float dt) {
         }
     } else if (ballZ_ > FIELD_L + GOAL_MARGIN) {
         playerScore_++;
+        playerPop_ = 1.0f;
         audio_.playSoftThud(0.7f, 0.35f);
         triggerShake(0.06f);
         ballVX_ *= 0.4f;
@@ -1199,10 +1219,15 @@ void Game::addScoreboard(Scene& scene) const {
     int aOnes = aiScore_ % 10;
 
     // Always show ones; show tens if >= 10 or always for classic look
-    glyphs::addDigit7(scene, -1.05f, digitY, digitZ, pTens, colPlayer);
-    glyphs::addDigit7(scene, -0.45f, digitY, digitZ, pOnes, colPlayer);
-    glyphs::addDigit7(scene, 0.45f, digitY, digitZ, aTens, colAi);
-    glyphs::addDigit7(scene, 1.05f, digitY, digitZ, aOnes, colAi);
+    // A freshly changed score pops: lifted toward the viewer and overbright, settling back.
+    const float pp = playerPop_ * playerPop_;
+    const float ap = aiPop_ * aiPop_;
+    const Vec3 cP = colPlayer * (1.0f + 1.2f * pp);
+    const Vec3 cA = colAi * (1.0f + 1.2f * ap);
+    glyphs::addDigit7(scene, -1.05f, digitY + 0.12f * pp, digitZ - 0.1f * pp, pTens, cP);
+    glyphs::addDigit7(scene, -0.45f, digitY + 0.12f * pp, digitZ - 0.1f * pp, pOnes, cP);
+    glyphs::addDigit7(scene, 0.45f, digitY + 0.12f * ap, digitZ - 0.1f * ap, aTens, cA);
+    glyphs::addDigit7(scene, 1.05f, digitY + 0.12f * ap, digitZ - 0.1f * ap, aOnes, cA);
 }
 
 
@@ -1247,23 +1272,26 @@ void Game::addMatchPointBanner(Scene& scene) const {
     glyphs::addWord(scene, word, startX, baseY, z, cell, gap, col, 0.6f);
 }
 
+static float smoothstepLocal(float t) {
+    t = std::max(0.0f, std::min(1.0f, t));
+    return t * t * (3.0f - 2.0f * t);
+}
+
 void Game::addServeCountdown(Scene& scene) const {
     if (serveTimer_ <= 0.0f || state_ != GameState::Play) {
         return;
     }
-    // Map remaining time to 3,2,1
-    int n = 1;
-    if (serveTimer_ > SERVE_DELAY * (2.0f / 3.0f)) {
-        n = 3;
-    } else if (serveTimer_ > SERVE_DELAY * (1.0f / 3.0f)) {
-        n = 2;
-    }
-    const float pulse = 0.15f * std::sin(serveTimer_ * 12.0f);
-    glyphs::addDigit7(scene, 0.0f, 1.4f + pulse, FIELD_L * 0.5f,
-                  n, Vec3(1.0f, 0.95f, 0.4f));
+    // Map remaining time to 3,2,1; each digit drops in, holds, then dims out.
+    const float period = SERVE_DELAY / 3.0f;
+    int n = std::max(1, std::min(3, static_cast<int>(std::ceil(serveTimer_ / period))));
+    const float e = 1.0f - (serveTimer_ - static_cast<float>(n - 1) * period) / period; // 0..1
+    const float drop = 1.0f - std::min(1.0f, e * 3.0f);
+    const float dim = 1.0f - 0.55f * smoothstepLocal((e - 0.7f) / 0.3f);
+    const float appear = std::min(1.0f, 0.35f + e * 4.0f);
+    // Floats well in front of the ball so it is readable from the paddle camera.
+    glyphs::addDigit7(scene, 0.0f, 1.5f + 0.5f * drop * drop, 4.2f, n,
+                      Vec3(1.0f, 0.95f, 0.4f) * (dim * appear));
 }
-
-
 
 void Game::addPauseBanner(Scene& scene) const {
     if (state_ != GameState::Pause) {
@@ -1442,16 +1470,18 @@ void Game::buildScene() {
     paddleColors(colP, colF);
 
     Box playerPad;
-    playerPad.minb = Vec3(playerX_ - PADDLE_W * 0.5f, 0.05f, 0.25f);
-    playerPad.maxb = Vec3(playerX_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, 0.25f + PADDLE_D);
-    playerPad.color = colP;
+    const float pKick = -0.14f * playerRecoil_;   // paddles recoil away from the ball
+    playerPad.minb = Vec3(playerX_ - PADDLE_W * 0.5f, 0.05f, 0.25f + pKick);
+    playerPad.maxb = Vec3(playerX_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, 0.25f + PADDLE_D + pKick);
+    playerPad.color = colP * (1.0f + 0.7f * playerRecoil_);
     playerPad.reflectivity = 0.35f;
     scene_.boxes.push_back(playerPad);
 
     Box aiPad;
-    aiPad.minb = Vec3(player2X_ - PADDLE_W * 0.5f, 0.05f, FIELD_L - 0.25f - PADDLE_D);
-    aiPad.maxb = Vec3(player2X_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, FIELD_L - 0.25f);
-    aiPad.color = colF;
+    const float aKick = 0.14f * aiRecoil_;
+    aiPad.minb = Vec3(player2X_ - PADDLE_W * 0.5f, 0.05f, FIELD_L - 0.25f - PADDLE_D + aKick);
+    aiPad.maxb = Vec3(player2X_ + PADDLE_W * 0.5f, 0.05f + PADDLE_H, FIELD_L - 0.25f + aKick);
+    aiPad.color = colF * (1.0f + 0.7f * aiRecoil_);
     aiPad.reflectivity = 0.3f;
     scene_.boxes.push_back(aiPad);
 
@@ -1471,8 +1501,14 @@ void Game::buildScene() {
     addGameOverBanner(scene_);
 
     Sphere ball;
-    ball.center = Vec3(ballX_, BALL_R + 0.02f, ballZ_);
-    ball.radius = BALL_R;
+    float ballScale = 1.0f;
+    if (state_ == GameState::Play && serveTimer_ > 0.0f && replayTimer_ <= 0.0f) {
+        // Spawn-in during the countdown: grow with a small overshoot (ease-out-back).
+        const float t = std::min(1.0f, (1.0f - serveTimer_ / SERVE_DELAY) / 0.5f) - 1.0f;
+        ballScale = std::max(0.05f, 1.0f + 2.70158f * t * t * t + 1.70158f * t * t);
+    }
+    ball.radius = BALL_R * ballScale;
+    ball.center = Vec3(ballX_, ball.radius + 0.02f, ballZ_);
     if (ballFlash_ > 0.0f) {
         float k = std::min(1.0f, ballFlash_ / 0.2f);
         ball.color = Vec3(1.0f, 1.0f, 1.0f) * (0.95f + 0.8f * k);
