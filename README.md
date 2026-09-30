@@ -7,6 +7,8 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Classic Pong reimagined as a **90s-style raytracer**.
 
+![KugelMatch Screenshot](screenshot.png)
+
 Two backends, same scene and rules:
 
 | Flag | Backend |
