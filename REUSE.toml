@@ -9,6 +9,6 @@ SPDX-FileCopyrightText = "Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
 [[annotations]]
-path = ["VERSION", "include/version.hpp.in"]
+path = ["VERSION", "screenshot.png", "flake.lock", "include/version.hpp.in"]
 SPDX-FileCopyrightText = "Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>"
 SPDX-License-Identifier = "GPL-3.0-or-later"
