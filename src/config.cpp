@@ -18,10 +18,15 @@ bool dirExists(const std::string& path) {
 }
 
 bool ensureDir(const std::string& path) {
-    if (dirExists(path)) {
+    if (path.empty() || dirExists(path)) {
         return true;
     }
-    return ::mkdir(path.c_str(), 0755) == 0;
+    // mkdir -p: create missing parents first (e.g. ~/.config on a fresh account).
+    const auto slash = path.find_last_of('/');
+    if (slash != std::string::npos && slash > 0) {
+        ensureDir(path.substr(0, slash));
+    }
+    return ::mkdir(path.c_str(), 0755) == 0 || dirExists(path);
 }
 
 } // namespace
