@@ -458,6 +458,7 @@ void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
     loc1f("u_fovScale", cam.fovScale);
     float aspect = rtH_ > 0 ? static_cast<float>(rtW_) / static_cast<float>(rtH_) : 1.0f;
     loc1f("u_aspect", aspect);
+    loc1f("u_pixelAngle", rtH_ > 0 ? 2.0f * cam.fovScale / static_cast<float>(rtH_) : 0.0f);
 
     loc3("u_lightPos", scene.lightPos);
     loc3("u_lightColor", scene.lightColor);
@@ -516,6 +517,8 @@ void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
         loc1f(name, p.reflectivity);
         std::snprintf(name, sizeof(name), "u_planeChecker[%d]", i);
         loc1i(name, p.checker ? 1 : 0);
+        std::snprintf(name, sizeof(name), "u_planeOneSided[%d]", i);
+        loc1i(name, p.oneSided ? 1 : 0);
     }
 }
 

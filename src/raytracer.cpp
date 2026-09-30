@@ -5,6 +5,22 @@
 #include <algorithm>
 #include <cmath>
 
+namespace {
+
+// Integral of the unit square wave s(x) = (-1)^floor(x): a triangle wave, period 2.
+inline float squareIntegral(float x) {
+    const float m = x - 2.0f * std::floor(x * 0.5f);
+    return 1.0f - std::fabs(m - 1.0f);
+}
+
+// Box-filtered s(x) over [x - w/2, x + w/2]; tends to 0 as the filter widens.
+inline float filteredSquare(float x, float w) {
+    w = std::max(w, 1e-4f);
+    return (squareIntegral(x + 0.5f * w) - squareIntegral(x - 0.5f * w)) / w;
+}
+
+} // namespace
+
 CpuRaytracer::CpuRaytracer() {
     numThreads_ = static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
     if (numThreads_ > 16) {
@@ -42,6 +58,7 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
             best.normal = (best.point - s.center).normalized();
             best.color = s.color;
             best.reflectivity = s.reflectivity;
+            best.radius = s.radius;
             best.hit = true;
         }
     }
@@ -75,16 +92,22 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
         Vec3 center = (box.minb + box.maxb) * 0.5f;
         Vec3 d = best.point - center;
         Vec3 halfExtent = (box.maxb - box.minb) * 0.5f;
-        auto face = [](float v, float h) {
-            float ah = std::max(std::fabs(h), 1e-6f);
-            return static_cast<float>(static_cast<int>(v / ah * 1.0001f));
-        };
-        best.normal = Vec3(
-            face(d.x, halfExtent.x),
-            face(d.y, halfExtent.y),
-            face(d.z, halfExtent.z)).normalized();
+        // Face normal = axis along which the hit point is closest to the box surface
+        // (dominant normalized offset). Robust for thin boxes and grazing hits.
+        const float qx = d.x / std::max(std::fabs(halfExtent.x), 1e-6f);
+        const float qy = d.y / std::max(std::fabs(halfExtent.y), 1e-6f);
+        const float qz = d.z / std::max(std::fabs(halfExtent.z), 1e-6f);
+        const float ax = std::fabs(qx), ay = std::fabs(qy), az = std::fabs(qz);
+        if (ax >= ay && ax >= az) {
+            best.normal = Vec3(qx < 0.0f ? -1.0f : 1.0f, 0.0f, 0.0f);
+        } else if (ay >= az) {
+            best.normal = Vec3(0.0f, qy < 0.0f ? -1.0f : 1.0f, 0.0f);
+        } else {
+            best.normal = Vec3(0.0f, 0.0f, qz < 0.0f ? -1.0f : 1.0f);
+        }
         best.color = box.color;
         best.reflectivity = box.reflectivity;
+        best.radius = 0.0f;
         best.hit = true;
     }
 
@@ -92,6 +115,9 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
         float denom = p.normal.dot(ray.dir);
         if (std::abs(denom) < 1e-6f) {
             continue;
+        }
+        if (p.oneSided && denom > 0.0f) {
+            continue; // seen from behind
         }
         float t = (p.point - ray.origin).dot(p.normal) / denom;
         if (t < 1e-4f || t >= best.t) {
@@ -102,22 +128,43 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
         best.point = ray.origin + ray.dir * t;
         best.normal = denom < 0.0f ? p.normal : -p.normal;
         best.reflectivity = p.reflectivity;
+        best.radius = 0.0f;
 
         if (p.checker) {
-            float u = 0.f, v = 0.f;
+            float u = 0.f, v = 0.f;   // position on the plane's tangent axes
+            float du = 0.f, dv = 0.f; // ray direction on the same axes
             if (std::abs(p.normal.y) > 0.9f) {
                 u = best.point.x;
                 v = best.point.z;
+                du = ray.dir.x;
+                dv = ray.dir.z;
             } else if (std::abs(p.normal.x) > 0.9f) {
                 u = best.point.z;
                 v = best.point.y;
+                du = ray.dir.z;
+                dv = ray.dir.y;
             } else {
                 u = best.point.x;
                 v = best.point.y;
+                du = ray.dir.x;
+                dv = ray.dir.y;
             }
-            int iu = static_cast<int>(std::floor(u * p.scale));
-            int iv = static_cast<int>(std::floor(v * p.scale));
-            best.color = ((iu + iv) & 1) ? p.colorA : p.colorB;
+            // Pixel footprint on the plane: an ellipse stretched by 1/cos along the
+            // ray's projected direction. Take its axis-aligned extents and box-filter
+            // the checker over them so distant / grazing / reflected tiles fade to
+            // their average colour instead of aliasing.
+            const float w = ray.footprint0 + ray.spread * t;
+            const float minor = w;
+            const float major = w / std::max(0.05f, std::fabs(denom));
+            const float len = std::sqrt(du * du + dv * dv);
+            const float mu = len > 1e-6f ? du / len : 1.0f;
+            const float mv = len > 1e-6f ? dv / len : 0.0f;
+            const float wu = std::sqrt(major * major * mu * mu + minor * minor * mv * mv);
+            const float wv = std::sqrt(major * major * mv * mv + minor * minor * mu * mu);
+            const float sU = filteredSquare(u * p.scale, wu * p.scale);
+            const float sV = filteredSquare(v * p.scale, wv * p.scale);
+            const float fracA = 0.5f - 0.5f * sU * sV; // 1 = fully colorA
+            best.color = p.colorB + (p.colorA - p.colorB) * fracA;
         } else {
             best.color = p.colorA;
         }
@@ -178,6 +225,10 @@ Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
         Ray refl;
         refl.origin = h.point + h.normal * 1e-3f;
         refl.dir = ray.dir.reflect(h.normal).normalized();
+        // Carry the pixel footprint through the mirror; convex mirrors diverge it.
+        const float wHit = ray.footprint0 + ray.spread * h.t;
+        refl.footprint0 = wHit;
+        refl.spread = ray.spread + (h.radius > 0.0f ? 2.0f * wHit / h.radius : 0.0f);
         Vec3 rcol = shade(refl, scene, depth + 1);
         col = col * (1.0f - h.reflectivity) + rcol * h.reflectivity;
     }
@@ -188,6 +239,7 @@ Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
 void CpuRaytracer::renderRow(const Scene& scene, const Camera& cam, uint32_t* fb,
                                int y, int width, int height) {
     const float aspect = static_cast<float>(width) / static_cast<float>(height);
+    const float pixelAngle = 2.0f * cam.fovScale / static_cast<float>(height);
     for (int x = 0; x < width; ++x) {
         float u = (2.0f * (x + 0.5f) / width - 1.0f) * aspect * cam.fovScale;
         float v = (1.0f - 2.0f * (y + 0.5f) / height) * cam.fovScale;
@@ -195,6 +247,8 @@ void CpuRaytracer::renderRow(const Scene& scene, const Camera& cam, uint32_t* fb
         Ray ray;
         ray.origin = cam.pos;
         ray.dir = (cam.forward + cam.right * u + cam.up * v).normalized();
+        ray.footprint0 = 0.0f;
+        ray.spread = pixelAngle;
 
         Vec3 col = shade(ray, scene, 0);
         col = col * std::max(0.1f, scene.exposure);

@@ -15,6 +15,7 @@ uniform vec3 u_camRight;
 uniform vec3 u_camUp;
 uniform float u_fovScale;
 uniform float u_aspect;
+uniform float u_pixelAngle; // 2 * fovScale / render height (radians per pixel, small-angle)
 
 uniform vec3 u_lightPos;
 uniform vec3 u_lightColor;
@@ -44,6 +45,7 @@ uniform vec3 u_planeColorB[MAX_PLANES];
 uniform float u_planeScale[MAX_PLANES];
 uniform float u_planeReflect[MAX_PLANES];
 uniform int u_planeChecker[MAX_PLANES];
+uniform int u_planeOneSided[MAX_PLANES];
 
 struct Hit {
     float t;
@@ -51,15 +53,31 @@ struct Hit {
     vec3 normal;
     vec3 color;
     float reflectivity;
+    float radius; // > 0 for curved surfaces (sphere), 0 for flat
     bool hit;
 };
 
-Hit intersect(vec3 ro, vec3 rd) {
+// Integral of the unit square wave (-1)^floor(x): a triangle wave, period 2.
+float squareIntegral(float x) {
+    float m = x - 2.0 * floor(x * 0.5);
+    return 1.0 - abs(m - 1.0);
+}
+
+// Box-filtered (-1)^floor(x) over [x - w/2, x + w/2]; tends to 0 as the filter widens.
+float filteredSquare(float x, float w) {
+    w = max(w, 1e-4);
+    return (squareIntegral(x + 0.5 * w) - squareIntegral(x - 0.5 * w)) / w;
+}
+
+// fw0 / fa: pixel footprint model (world width at distance d is fw0 + fa * d),
+// used to filter the procedural checkers. See Ray in include/scene.hpp.
+Hit intersect(vec3 ro, vec3 rd, float fw0, float fa) {
     Hit best;
     best.t = 1e30;
     best.hit = false;
     best.color = vec3(0.0);
     best.reflectivity = 0.0;
+    best.radius = 0.0;
     best.normal = vec3(0.0);
     best.point = vec3(0.0);
 
@@ -79,6 +97,7 @@ Hit intersect(vec3 ro, vec3 rd) {
             best.normal = normalize(best.point - u_sphereCenter[i]);
             best.color = u_sphereColor[i];
             best.reflectivity = u_sphereReflect[i];
+            best.radius = u_sphereRadius[i];
             best.hit = true;
         }
     }
@@ -101,12 +120,19 @@ Hit intersect(vec3 ro, vec3 rd) {
         vec3 center = (u_boxMin[i] + u_boxMax[i]) * 0.5;
         vec3 d = best.point - center;
         vec3 halfExtent = (u_boxMax[i] - u_boxMin[i]) * 0.5;
-        best.normal = normalize(vec3(
-            float(int(d.x / abs(halfExtent.x) * 1.0001)),
-            float(int(d.y / abs(halfExtent.y) * 1.0001)),
-            float(int(d.z / abs(halfExtent.z) * 1.0001))));
+        // Face normal = axis along which the hit point is closest to the box surface.
+        vec3 q = d / max(abs(halfExtent), vec3(1e-6));
+        vec3 aq = abs(q);
+        if (aq.x >= aq.y && aq.x >= aq.z) {
+            best.normal = vec3(q.x < 0.0 ? -1.0 : 1.0, 0.0, 0.0);
+        } else if (aq.y >= aq.z) {
+            best.normal = vec3(0.0, q.y < 0.0 ? -1.0 : 1.0, 0.0);
+        } else {
+            best.normal = vec3(0.0, 0.0, q.z < 0.0 ? -1.0 : 1.0);
+        }
         best.color = u_boxColor[i];
         best.reflectivity = u_boxReflect[i];
+        best.radius = 0.0;
         best.hit = true;
     }
 
@@ -114,6 +140,7 @@ Hit intersect(vec3 ro, vec3 rd) {
         if (i >= u_numPlanes) break;
         float denom = dot(u_planeNormal[i], rd);
         if (abs(denom) < 1e-6) continue;
+        if (u_planeOneSided[i] != 0 && denom > 0.0) continue; // seen from behind
         float t = dot(u_planePoint[i] - ro, u_planeNormal[i]) / denom;
         if (t < 1e-4 || t >= best.t) continue;
 
@@ -121,22 +148,35 @@ Hit intersect(vec3 ro, vec3 rd) {
         best.point = ro + rd * t;
         best.normal = denom < 0.0 ? u_planeNormal[i] : -u_planeNormal[i];
         best.reflectivity = u_planeReflect[i];
+        best.radius = 0.0;
 
         if (u_planeChecker[i] != 0) {
-            float u, v;
+            float u, v;   // position on the plane's tangent axes
+            float du, dv; // ray direction on the same axes
             if (abs(u_planeNormal[i].y) > 0.9) {
-                u = best.point.x;
-                v = best.point.z;
+                u = best.point.x; v = best.point.z;
+                du = rd.x;        dv = rd.z;
             } else if (abs(u_planeNormal[i].x) > 0.9) {
-                u = best.point.z;
-                v = best.point.y;
+                u = best.point.z; v = best.point.y;
+                du = rd.z;        dv = rd.y;
             } else {
-                u = best.point.x;
-                v = best.point.y;
+                u = best.point.x; v = best.point.y;
+                du = rd.x;        dv = rd.y;
             }
-            int iu = int(floor(u * u_planeScale[i]));
-            int iv = int(floor(v * u_planeScale[i]));
-            best.color = ((iu + iv) & 1) != 0 ? u_planeColorA[i] : u_planeColorB[i];
+            // Pixel footprint on the plane: an ellipse stretched by 1/cos along the
+            // ray's projected direction; filter the checker over its axis-aligned extents.
+            float w = fw0 + fa * t;
+            float minorW = w;
+            float majorW = w / max(0.05, abs(denom));
+            float len = sqrt(du * du + dv * dv);
+            float mu = len > 1e-6 ? du / len : 1.0;
+            float mv = len > 1e-6 ? dv / len : 0.0;
+            float wu = sqrt(majorW * majorW * mu * mu + minorW * minorW * mv * mv);
+            float wv = sqrt(majorW * majorW * mv * mv + minorW * minorW * mu * mu);
+            float sU = filteredSquare(u * u_planeScale[i], wu * u_planeScale[i]);
+            float sV = filteredSquare(v * u_planeScale[i], wv * u_planeScale[i]);
+            float fracA = 0.5 - 0.5 * sU * sV; // 1 = fully colorA
+            best.color = mix(u_planeColorB[i], u_planeColorA[i], fracA);
         } else {
             best.color = u_planeColorA[i];
         }
@@ -167,7 +207,7 @@ float softShadow(vec3 p, vec3 n) {
         vec3 toL = lp - p;
         float dist = length(toL);
         toL /= max(dist, 1e-4);
-        Hit sh = intersect(p + n * 1e-3, toL);
+        Hit sh = intersect(p + n * 1e-3, toL, 0.0, 0.0);
         if (!(sh.hit && sh.t < dist)) {
             lit += 1.0;
         }
@@ -194,16 +234,20 @@ vec3 shadeHit(Hit h, vec3 rd) {
 }
 
 // Iterative path tracer for primary + reflection bounces.
+// Mirrors CpuRaytracer::shade: a hit blends local shading with the reflection
+// unless it is the last allowed bounce, where local shading is used in full.
 vec3 trace(vec3 ro, vec3 rd) {
     vec3 throughput = vec3(1.0);
     vec3 result = vec3(0.0);
+    float fw0 = 0.0;
+    float fa = u_pixelAngle;
 
     int maxB = clamp(u_maxBounces, 0, 3);
     for (int bounce = 0; bounce <= 3; ++bounce) {
         if (bounce > maxB) {
             break;
         }
-        Hit h = intersect(ro, rd);
+        Hit h = intersect(ro, rd, fw0, fa);
         if (!h.hit) {
             result += throughput * u_skyColor;
             break;
@@ -211,13 +255,17 @@ vec3 trace(vec3 ro, vec3 rd) {
 
         vec3 local = shadeHit(h, rd);
         float kr = h.reflectivity;
-        result += throughput * local * (1.0 - kr);
+        bool reflects = kr >= 0.01 && bounce < maxB;
+        result += throughput * local * (reflects ? (1.0 - kr) : 1.0);
 
-        if (kr < 0.01 || bounce == maxB) {
+        if (!reflects) {
             break;
         }
 
-        // Continue along reflection
+        // Continue along the reflection, carrying the pixel footprint.
+        float wHit = fw0 + fa * h.t;
+        fw0 = wHit;
+        fa += h.radius > 0.0 ? 2.0 * wHit / h.radius : 0.0;
         throughput *= kr;
         rd = reflect(rd, h.normal);
         ro = h.point + h.normal * 1e-3;

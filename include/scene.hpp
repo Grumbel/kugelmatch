@@ -9,6 +9,12 @@
 struct Ray {
     Vec3 origin;
     Vec3 dir; // normalized
+    // Pixel footprint model used to filter procedural textures (anti-aliasing):
+    // the world-space width of the ray's pixel at distance d along the ray is
+    // footprint0 + spread * d.  Primary rays start at (0, pixel angle); mirror
+    // bounces carry the width forward and curved mirrors add divergence.
+    float footprint0 = 0.0f;
+    float spread = 0.0f;
 };
 
 struct Hit {
@@ -17,6 +23,7 @@ struct Hit {
     Vec3 normal;
     Vec3 color;
     float reflectivity = 0.0f;
+    float radius = 0.0f; // > 0 for curved surfaces (sphere), 0 for flat
     bool hit = false;
 };
 
@@ -42,6 +49,9 @@ struct Plane {
     Vec3 colorB;
     float scale = 1.0f;
     float reflectivity = 0.0f;
+    // One-sided planes are invisible when hit from behind (the side the normal
+    // points away from). Lets cameras sit outside the room looking in.
+    bool oneSided = false;
 };
 
 struct Scene {
