@@ -129,6 +129,27 @@ private:
     float shake_ = 0.0f;
     float shakeOffsetX_ = 0.0f;
     float shakeOffsetY_ = 0.0f;
+    float shakeAge_ = 0.0f;   // seconds since the last impact (drives the oscillation)
+
+    // Camera rig: each shot defines an ideal pose; the rendered pose follows it
+    // through critically damped smoothing so every cut becomes a glide.
+    struct CamPose {
+        Vec3 pos;
+        Vec3 look;
+        float fov = 60.0f;
+    };
+    CamPose cam_;
+    Vec3 camPosVel_;
+    Vec3 camLookVel_;
+    float camFovVel_ = 0.0f;
+    bool camInit_ = false;
+    int camShot_ = -1;
+    float camGlide_ = 0.0f;   // 1 right after a big shot change, decays to 0
+    float fovKick_ = 0.0f;    // impact FOV punch (degrees)
+    float camRecoil_ = 0.0f;  // impact dolly-back (0..1)
+    float camRoll_ = 0.0f;    // strafe lean (radians)
+    float playerVelX_ = 0.0f;
+    float prevPlayerX_ = 0.0f;
 
     float serveTimer_ = 0.0f;
     bool nextServeTowardPlayer_ = false;
@@ -210,6 +231,7 @@ private:
     void flushPendingResize(float dt);
     void applyWindowSize(int w, int h);
     void triggerShake(float amount);
+    void cameraImpulse(float fovDegrees, float recoil);
     void updateShake(float dt);
     void updateCamera(float dt);
     void handleScreenshots();

@@ -837,12 +837,16 @@ void Game::triggerShake(float amount) {
     if (amount > shake_) {
         shake_ = amount;
     }
+    // Random impulse direction, but the motion itself is a decaying oscillation
+    // driven by time (see updateCamera), so it looks the same at any frame rate.
     float angle = (static_cast<float>(std::rand() % 1000) / 1000.0f) * 6.2831853f;
     shakeOffsetX_ = std::cos(angle);
     shakeOffsetY_ = std::sin(angle) * 0.6f;
+    shakeAge_ = 0.0f;
 }
 
 void Game::updateShake(float dt) {
+    shakeAge_ += dt;
     if (shake_ <= 0.001f) {
         shake_ = 0.0f;
         return;
@@ -851,6 +855,11 @@ void Game::updateShake(float dt) {
     if (shake_ < 0.001f) {
         shake_ = 0.0f;
     }
+}
+
+void Game::cameraImpulse(float fovDegrees, float recoil) {
+    fovKick_ = std::max(fovKick_, fovDegrees);
+    camRecoil_ = std::max(camRecoil_, recoil);
 }
 
 // After a goal the ball keeps rolling with friction and thuds into the side / end
@@ -1019,6 +1028,7 @@ void Game::update(float dt) {
                 float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
                 audio_.playClank(0.95f + std::min(0.25f, speed * 0.02f), 0.45f);
                 triggerShake(0.04f);
+                cameraImpulse(0.8f, 0.0f);
                 ballFlash_ = 0.12f;
             } else if (ballX_ > wall) {
                 ballX_ = wall;
@@ -1026,6 +1036,7 @@ void Game::update(float dt) {
                 float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
                 audio_.playClank(0.95f + std::min(0.25f, speed * 0.02f), 0.45f);
                 triggerShake(0.04f);
+                cameraImpulse(0.8f, 0.0f);
                 ballFlash_ = 0.12f;
             }
 
@@ -1052,6 +1063,7 @@ void Game::update(float dt) {
                     float pitch = 0.85f + std::min(0.4f, sp * 0.03f) + std::abs(offset) * 0.15f;
                     audio_.playClank(pitch, 0.75f);
                     triggerShake(0.12f + std::min(0.08f, sp * 0.008f));
+                    cameraImpulse(3.5f, 1.0f);
                     ballFlash_ = 0.2f;
                 }
             }
@@ -1078,6 +1090,7 @@ void Game::update(float dt) {
                     }
                     audio_.playClank(0.75f + std::min(0.35f, sp * 0.025f), 0.55f);
                     triggerShake(0.05f);
+                    cameraImpulse(1.2f, 0.0f);
                     ballFlash_ = 0.18f;
                 }
             }
@@ -1564,11 +1577,39 @@ void Game::buildScene() {
     }
 }
 
-void Game::updateCamera(float dt) {
-    (void)dt;
-    const Vec3 up(0, 1, 0);
+namespace {
 
-    // Keep cinematic cameras inside the room (walls ±FIELD_W/2, z in [0,FIELD_L], y < WALL_H).
+float smoothstep01(float t) {
+    t = std::max(0.0f, std::min(1.0f, t));
+    return t * t * (3.0f - 2.0f * t);
+}
+
+// Critically damped follow (no overshoot for a static target). Same scheme as
+// the well-known "SmoothDamp"; frame-rate independent.
+float smoothDamp(float cur, float target, float& vel, float smoothTime, float dt) {
+    smoothTime = std::max(1e-4f, smoothTime);
+    const float omega = 2.0f / smoothTime;
+    const float x = omega * dt;
+    const float e = 1.0f / (1.0f + x + 0.48f * x * x + 0.235f * x * x * x);
+    const float change = cur - target;
+    const float temp = (vel + omega * change) * dt;
+    vel = (vel - omega * temp) * e;
+    return target + (change + temp) * e;
+}
+
+Vec3 smoothDamp(const Vec3& cur, const Vec3& target, Vec3& vel, float smoothTime, float dt) {
+    return Vec3(smoothDamp(cur.x, target.x, vel.x, smoothTime, dt),
+                smoothDamp(cur.y, target.y, vel.y, smoothTime, dt),
+                smoothDamp(cur.z, target.z, vel.z, smoothTime, dt));
+}
+
+} // namespace
+
+void Game::updateCamera(float dt) {
+    dt = std::max(dt, 1e-4f);
+    const Vec3 worldUp(0, 1, 0);
+
+    // Keep cinematic cameras inside the room (walls ±FIELD_W/2, end walls, ceiling).
     auto clampInside = [&](Vec3 p) {
         const float mx = FIELD_W * 0.5f - 0.55f;
         p.x = std::max(-mx, std::min(mx, p.x));
@@ -1577,91 +1618,168 @@ void Game::updateCamera(float dt) {
         return p;
     };
 
-    auto orbitAround = [&](float time, const Vec3& focus, float speed, float rx, float rz,
-                           float yBase, float yAmp, float fov) {
-        float ang = time * speed;
-        Vec3 pos(
-            focus.x + std::sin(ang) * rx,
-            yBase + yAmp * std::sin(time * 0.55f),
-            focus.z + std::cos(ang) * rz);
-        camera_.set(clampInside(pos), focus, up, fov);
+    // ---- ideal poses ------------------------------------------------------
+    // Behind and above the paddle: high enough to read the court and the ball's
+    // depth, low enough to stay "in" the game; the pitch keeps the paddle inside
+    // the bottom of the frame instead of clipping it.
+    auto paddlePose = [&]() {
+        CamPose p;
+        p.pos = Vec3(playerX_, 1.25f, -1.0f);
+        p.look = Vec3(playerX_ * 0.35f + ballX_ * 0.30f, 0.27f, 9.0f);
+        p.fov = 64.0f;
+        return p;
+    };
+    auto highPose = [&]() {
+        CamPose p;
+        p.pos = Vec3(playerX_ * 0.4f, 3.2f, -2.5f);
+        p.look = Vec3(ballX_ * 0.15f, 0.1f, FIELD_L * 0.36f);
+        p.fov = 60.0f;
+        return p;
+    };
+    // Broadcast view from outside the (one-sided) right wall, gently panning with the ball.
+    auto sidePose = [&]() {
+        CamPose p;
+        p.pos = Vec3(FIELD_W * 0.5f + 7.6f, 3.0f, FIELD_L * 0.5f);
+        p.look = Vec3(0.0f, 0.3f, FIELD_L * 0.5f + (ballZ_ - FIELD_L * 0.5f) * 0.12f);
+        p.fov = 54.0f;
+        return p;
+    };
+    auto orbitPose = [&](const Vec3& focus, float ang, float rx, float rz, float y, float fov) {
+        CamPose p;
+        p.pos = clampInside(Vec3(focus.x + std::sin(ang) * rx, y, focus.z + std::cos(ang) * rz));
+        p.look = focus;
+        p.fov = fov;
+        return p;
     };
 
-    auto paddleCam = [&](float sx, float sy) {
-        Vec3 camPos(playerX_ + sx, 1.1f + sy, -0.6f);
-        Vec3 lookAt(playerX_ * 0.3f + sx * 0.3f, 0.6f + sy * 0.2f, FIELD_L * 0.55f);
-        camera_.set(camPos, lookAt, up, 70.0f);
-    };
+    // ---- choose the shot --------------------------------------------------
+    enum { ShotAttract = 0, ShotIntro, ShotGameOver, ShotReplay, ShotPlay };
+    int shot = ShotPlay + static_cast<int>(cameraMode_);
+    float tau = 0.05f;      // follow time constant of the shot (s)
+    bool cinematic = false;
+    CamPose target;
 
     if (state_ == GameState::Attract) {
-        // Orbit the demo ball so the opening shot has a clear subject
+        shot = ShotAttract;
+        cinematic = true;
+        tau = 0.30f;
+        // Slow sway around the demo ball, looking down-court from the near half.
         Vec3 focus(ballX_, BALL_R + 0.4f, ballZ_);
-        orbitAround(attractTime_, focus, 0.45f, 2.4f, 3.2f, 2.2f, 0.25f, 55.0f);
-        return;
-    }
-
-    if (state_ == GameState::GameOver) {
-        // Orbit in front of the scoreboard (player-facing side), stay inside
+        target = orbitPose(focus, std::sin(attractTime_ * 0.25f) * 1.1f + 0.35f, 2.4f, 3.2f,
+                           2.0f + 0.25f * std::sin(attractTime_ * 0.55f), 55.0f);
+    } else if (state_ == GameState::GameOver) {
+        shot = ShotGameOver;
+        cinematic = true;
+        tau = 0.30f;
         Vec3 focus(0.0f, WALL_H - 1.0f, FIELD_L * 0.5f - 0.35f);
-        orbitAround(gameOverTime_, focus, 0.7f, 2.5f, 2.6f, 2.35f, 0.3f, 52.0f);
-        return;
-    }
-
-    if (state_ == GameState::Intro) {
-        // Smoothstep fly-in from ball orbit to paddle cam
-        float t = introT_;
-        t = t * t * (3.0f - 2.0f * t);
+        target = orbitPose(focus, gameOverTime_ * 0.7f, 2.5f, 2.6f,
+                           2.35f + 0.3f * std::sin(gameOverTime_ * 0.55f), 52.0f);
+    } else if (state_ == GameState::Intro) {
+        shot = ShotIntro;
+        tau = 0.08f;
+        const float t = smoothstep01(introT_);
         Vec3 focus(ballX_, BALL_R + 0.4f, ballZ_);
-        float ang = attractTime_ * 0.45f;
-        Vec3 orbitPos = clampInside(Vec3(
-            focus.x + std::sin(ang) * 2.4f,
-            2.2f,
-            focus.z + std::cos(ang) * 3.2f));
-        Vec3 padPos(playerX_, 1.1f, -0.6f);
-        Vec3 padLook(playerX_ * 0.3f, 0.6f, FIELD_L * 0.55f);
-        Vec3 pos = orbitPos * (1.0f - t) + padPos * t;
-        Vec3 look = focus * (1.0f - t) + padLook * t;
-        float fov = 55.0f * (1.0f - t) + 70.0f * t;
-        camera_.set(pos, look, up, fov);
-        return;
-    }
-
-    if (state_ == GameState::Play && replayTimer_ > 0.0f) {
-        float dur = std::max(0.2f, replayDuration_);
-        float t = 1.0f - (replayTimer_ / dur);
-        t = t * t * (3.0f - 2.0f * t);
-        float spin = slowmoReplay_ ? 0.35f : 0.85f;
-        float ang = animTime_ * spin;
-        float rx = slowmoReplay_ ? 2.4f : 2.2f;
-        float rz = slowmoReplay_ ? 2.8f : 2.5f;
+        CamPose a = orbitPose(focus, std::sin(attractTime_ * 0.25f) * 1.1f + 0.35f, 2.4f, 3.2f,
+                              2.0f, 55.0f);
+        CamPose b = paddlePose();
+        target.pos = a.pos * (1.0f - t) + b.pos * t;
+        target.look = a.look * (1.0f - t) + b.look * t;
+        target.fov = a.fov * (1.0f - t) + b.fov * t;
+    } else if (state_ == GameState::Play && replayTimer_ > 0.0f) {
+        shot = ShotReplay;
+        cinematic = true;
+        tau = 0.30f;
+        // Start on the side of the ball facing the action, then swing around it while
+        // slowly pushing in.
+        const float dur = std::max(0.2f, replayDuration_);
+        const float elapsed = dur - replayTimer_;
+        const float t = smoothstep01(elapsed / dur);
+        const float spin = slowmoReplay_ ? 0.45f : 0.9f;
+        const float startAng = replayTowardPlayer_ ? 0.0f : 3.14159265f;
+        const float dir = (ballX_ >= 0.0f) ? -1.0f : 1.0f; // swing toward the room centre
         Vec3 focus(ballX_, BALL_R + 0.25f, ballZ_);
-        Vec3 pos = clampInside(Vec3(
-            focus.x + std::sin(ang) * rx,
-            2.0f + 0.4f * t,
-            focus.z + std::cos(ang) * rz));
-        camera_.set(pos, focus, up, slowmoReplay_ ? 48.0f : 55.0f);
-        return;
-    }
-
-    // Play / Pause: selected camera mode + shake
-    float sx = shakeOffsetX_ * shake_;
-    float sy = shakeOffsetY_ * shake_;
-    if (shake_ > 0.001f && cameraMode_ == CameraMode::Paddle) {
-        sx += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.35f;
-        sy += ((std::rand() % 100) / 100.0f - 0.5f) * shake_ * 0.25f;
-    }
-
-    if (cameraMode_ == CameraMode::High) {
-        Vec3 camPos(playerX_ * 0.4f + sx * 0.3f, 3.2f + sy * 0.2f, -2.5f);
-        Vec3 lookAt(0.0f, 0.4f, FIELD_L * 0.45f);
-        camera_.set(camPos, lookAt, up, 58.0f);
+        target = orbitPose(focus, startAng + dir * elapsed * spin, 3.0f - 0.5f * t, 3.4f - 0.6f * t,
+                           1.8f + 0.5f * t, slowmoReplay_ ? 48.0f : 55.0f);
+    } else if (cameraMode_ == CameraMode::High) {
+        target = highPose();
+        tau = 0.12f;
     } else if (cameraMode_ == CameraMode::Sideline) {
-        Vec3 camPos(FIELD_W * 0.5f + 3.5f, 2.4f, FIELD_L * 0.5f);
-        Vec3 lookAt(0.0f, 0.5f, FIELD_L * 0.5f);
-        camera_.set(camPos, lookAt, up, 50.0f);
+        target = sidePose();
+        tau = 0.25f;
     } else {
-        paddleCam(sx, sy);
+        target = paddlePose();
     }
+
+    // ---- shot change → glide -----------------------------------------------
+    if (!camInit_) {
+        cam_ = target;
+        camPosVel_ = camLookVel_ = Vec3();
+        camFovVel_ = 0.0f;
+        camShot_ = shot;
+        camInit_ = true;
+        prevPlayerX_ = playerX_;
+    } else if (shot != camShot_) {
+        camShot_ = shot;
+        // Only slow the follow down when the new shot is a real jump; the
+        // Intro → Play hand-over is continuous and must stay tight.
+        if ((target.pos - cam_.pos).length() > 1.0f) {
+            camGlide_ = 1.0f;
+        }
+    }
+    camGlide_ = std::max(0.0f, camGlide_ - dt / 1.1f);
+    const float tauEff = tau + 0.22f * smoothstep01(camGlide_);
+
+    cam_.pos = smoothDamp(cam_.pos, target.pos, camPosVel_, tauEff, dt);
+    cam_.look = smoothDamp(cam_.look, target.look, camLookVel_, tauEff, dt);
+    cam_.fov = smoothDamp(cam_.fov, target.fov, camFovVel_, std::max(0.15f, tauEff), dt);
+    if (cinematic) {
+        cam_.pos = clampInside(cam_.pos);
+    }
+
+    // ---- gameplay feel: recoil, FOV punch, strafe lean, shake ---------------
+    fovKick_ *= std::exp(-dt * 6.0f);
+    camRecoil_ *= std::exp(-dt * 7.0f);
+
+    const bool playing = (state_ == GameState::Play || state_ == GameState::Pause) &&
+                         replayTimer_ <= 0.0f;
+    const float rawVel = (playerX_ - prevPlayerX_) / dt;
+    prevPlayerX_ = playerX_;
+    playerVelX_ += (rawVel - playerVelX_) * (1.0f - std::exp(-dt * 10.0f));
+    const float leanTarget =
+        (playing && cameraMode_ == CameraMode::Paddle)
+            ? std::max(-1.0f, std::min(1.0f, playerVelX_ / 9.0f)) * 0.03f
+            : 0.0f;
+    camRoll_ += (leanTarget - camRoll_) * (1.0f - std::exp(-dt * 8.0f));
+
+    Vec3 pos = cam_.pos;
+    Vec3 look = cam_.look;
+    float fov = cam_.fov;
+
+    if (playing) {
+        // Speed-dependent widening: the faster the ball, the more the world rushes.
+        const float speed = std::sqrt(ballVX_ * ballVX_ + ballVZ_ * ballVZ_);
+        fov += std::max(0.0f, std::min(2.0f, (speed - 6.0f) * 0.25f)) + fovKick_;
+        if (cameraMode_ == CameraMode::Paddle) {
+            pos.z -= 0.18f * camRecoil_;
+        }
+    }
+
+    if (shake_ > 0.001f) {
+        // Damped oscillation along the impulse direction (time-based, deterministic).
+        const float osc = std::cos(shakeAge_ * 46.0f);
+        const float osc2 = std::sin(shakeAge_ * 61.0f);
+        const float k = (cameraMode_ == CameraMode::Paddle || !playing) ? 1.0f : 0.3f;
+        const float sx = (shakeOffsetX_ * osc + 0.35f * osc2) * shake_ * k;
+        const float sy = (shakeOffsetY_ * osc - 0.25f * osc2) * shake_ * k;
+        pos.x += sx;
+        pos.y += sy;
+        look.x += sx * 0.3f;
+        look.y += sy * 0.2f;
+    }
+
+    const Vec3 up(std::sin(camRoll_), std::cos(camRoll_), 0.0f);
+    (void)worldUp;
+    camera_.set(pos, look, up, fov);
 }
 
 bool Game::saveScreenshot(const std::string& path) {
