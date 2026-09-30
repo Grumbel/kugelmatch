@@ -1656,12 +1656,10 @@ void Game::updateCamera(float dt) {
     enum { ShotAttract = 0, ShotIntro, ShotGameOver, ShotReplay, ShotPlay };
     int shot = ShotPlay + static_cast<int>(cameraMode_);
     float tau = 0.05f;      // follow time constant of the shot (s)
-    bool cinematic = false;
     CamPose target;
 
     if (state_ == GameState::Attract) {
         shot = ShotAttract;
-        cinematic = true;
         tau = 0.30f;
         // Slow sway around the demo ball, looking down-court from the near half.
         Vec3 focus(ballX_, BALL_R + 0.4f, ballZ_);
@@ -1669,7 +1667,6 @@ void Game::updateCamera(float dt) {
                            2.0f + 0.25f * std::sin(attractTime_ * 0.55f), 55.0f);
     } else if (state_ == GameState::GameOver) {
         shot = ShotGameOver;
-        cinematic = true;
         tau = 0.30f;
         Vec3 focus(0.0f, WALL_H - 1.0f, FIELD_L * 0.5f - 0.35f);
         target = orbitPose(focus, gameOverTime_ * 0.7f, 2.5f, 2.6f,
@@ -1687,7 +1684,6 @@ void Game::updateCamera(float dt) {
         target.fov = a.fov * (1.0f - t) + b.fov * t;
     } else if (state_ == GameState::Play && replayTimer_ > 0.0f) {
         shot = ShotReplay;
-        cinematic = true;
         tau = 0.30f;
         // Start on the side of the ball facing the action, then swing around it while
         // slowly pushing in.
@@ -1732,9 +1728,6 @@ void Game::updateCamera(float dt) {
     cam_.pos = smoothDamp(cam_.pos, target.pos, camPosVel_, tauEff, dt);
     cam_.look = smoothDamp(cam_.look, target.look, camLookVel_, tauEff, dt);
     cam_.fov = smoothDamp(cam_.fov, target.fov, camFovVel_, std::max(0.15f, tauEff), dt);
-    if (cinematic) {
-        cam_.pos = clampInside(cam_.pos);
-    }
 
     // ---- gameplay feel: recoil, FOV punch, strafe lean, shake ---------------
     fovKick_ *= std::exp(-dt * 6.0f);
