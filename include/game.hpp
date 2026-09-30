@@ -156,6 +156,10 @@ private:
     static constexpr float BALL_R = 0.35f;
     static constexpr float WALL_H = 3.5f;
     static constexpr float SERVE_DELAY = 0.75f;
+    // Distance from each paddle line to the end wall (near wall at z = -END_WALL,
+    // far wall at z = FIELD_L + END_WALL). Goals are scored at GOAL_MARGIN.
+    static constexpr float END_WALL = 1.6f;
+    static constexpr float GOAL_MARGIN = 1.0f;
 
     bool initWindowAndBackend();
     void shutdownBackend();
@@ -174,6 +178,7 @@ private:
     void enterAttract();
     void updateDemo(float dt);
     void update(float dt);
+    void updateGoalDrift(float dt);
     void handleInput(float dt);
     void buildScene();
     void addScoreboard(Scene& scene) const;

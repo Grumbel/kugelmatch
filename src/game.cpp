@@ -853,6 +853,47 @@ void Game::updateShake(float dt) {
     }
 }
 
+// After a goal the ball keeps rolling with friction and thuds into the side / end
+// walls, so the replay and game-over shots have a living subject instead of a
+// frozen ball.
+void Game::updateGoalDrift(float dt) {
+    ballX_ += ballVX_ * dt;
+    ballZ_ += ballVZ_ * dt;
+    const float damp = std::exp(-2.2f * dt);
+    ballVX_ *= damp;
+    ballVZ_ *= damp;
+
+    const float wallX = FIELD_W * 0.5f - BALL_R;
+    const float zMin = -END_WALL + BALL_R;
+    const float zMax = FIELD_L + END_WALL - BALL_R;
+    auto thud = [&](float speed) {
+        if (speed > 0.6f) {
+            audio_.playSoftThud(0.8f + std::min(0.3f, speed * 0.05f), std::min(0.4f, speed * 0.1f));
+            ballFlash_ = 0.1f;
+        }
+    };
+    if (ballX_ < -wallX) {
+        ballX_ = -wallX;
+        thud(std::abs(ballVX_));
+        ballVX_ = -ballVX_ * 0.5f;
+    } else if (ballX_ > wallX) {
+        ballX_ = wallX;
+        thud(std::abs(ballVX_));
+        ballVX_ = -ballVX_ * 0.5f;
+    }
+    if (ballZ_ < zMin) {
+        ballZ_ = zMin;
+        thud(std::abs(ballVZ_));
+        triggerShake(0.03f);
+        ballVZ_ = -ballVZ_ * 0.4f;
+    } else if (ballZ_ > zMax) {
+        ballZ_ = zMax;
+        thud(std::abs(ballVZ_));
+        triggerShake(0.03f);
+        ballVZ_ = -ballVZ_ * 0.4f;
+    }
+}
+
 void Game::update(float dt) {
     if (state_ == GameState::Play && replayTimer_ > 0.0f && slowmoReplay_) {
         animTime_ += dt * 0.4f;
@@ -877,6 +918,7 @@ void Game::update(float dt) {
     }
 
     if (state_ == GameState::GameOver) {
+        updateGoalDrift(dt);
         gameOverTime_ += dt;
         attractTime_ += dt * 0.5f; // keep some motion continuity if returning to attract
         return;
@@ -899,6 +941,7 @@ void Game::update(float dt) {
 
     // Post-goal replay beat (frozen ball, cinematic cam handled in updateCamera)
     if (state_ == GameState::Play && replayTimer_ > 0.0f) {
+        updateGoalDrift(slowmoReplay_ ? dt * 0.4f : dt);
         replayTimer_ -= dt;
         if (replayTimer_ <= 0.0f) {
             replayTimer_ = 0.0f;
@@ -1039,7 +1082,7 @@ void Game::update(float dt) {
                 }
             }
 
-            if (ballZ_ < -1.0f || ballZ_ > FIELD_L + 1.0f) {
+            if (ballZ_ < -GOAL_MARGIN || ballZ_ > FIELD_L + GOAL_MARGIN) {
                 scored = true;
             }
         }
@@ -1053,13 +1096,13 @@ void Game::update(float dt) {
         trailZ_[0] = ballZ_;
     }
 
-    if (ballZ_ < -1.0f) {
+    if (ballZ_ < -GOAL_MARGIN) {
         aiScore_++;
         audio_.playSoftThud(0.6f, 0.35f);
         triggerShake(0.06f);
-        ballVX_ = 0.0f;
-        ballVZ_ = 0.0f;
-        ballZ_ = -0.5f;
+        // Keep some momentum: the ball rolls on and thuds into the end wall.
+        ballVX_ *= 0.4f;
+        ballVZ_ *= 0.4f;
         if (aiScore_ >= pointsToWin_) {
             state_ = GameState::GameOver;
             gameOverTime_ = 0.0f;
@@ -1071,13 +1114,12 @@ void Game::update(float dt) {
             // nextServeTowardPlayer_: false means ball goes toward AI (away from player)
             nextServeTowardPlayer_ = false;
         }
-    } else if (ballZ_ > FIELD_L + 1.0f) {
+    } else if (ballZ_ > FIELD_L + GOAL_MARGIN) {
         playerScore_++;
         audio_.playSoftThud(0.7f, 0.35f);
         triggerShake(0.06f);
-        ballVX_ = 0.0f;
-        ballVZ_ = 0.0f;
-        ballZ_ = FIELD_L + 0.5f;
+        ballVX_ *= 0.4f;
+        ballVZ_ *= 0.4f;
         if (playerScore_ >= pointsToWin_) {
             state_ = GameState::GameOver;
             gameOverTime_ = 0.0f;
@@ -1345,8 +1387,9 @@ void Game::buildScene() {
     scene_.planes.push_back(ceil);
 
     Plane back;
-    back.point = Vec3(0, 0, FIELD_L + 0.5f);
+    back.point = Vec3(0, 0, FIELD_L + END_WALL);
     back.normal = Vec3(0, 0, -1);
+    back.oneSided = true;
     back.checker = true;
     back.colorA = Vec3(0.35f, 0.18f, 0.22f) * 0.5f + colF * 0.5f;
     back.colorB = Vec3(0.2f, 0.1f, 0.12f) * 0.55f + colF * 0.25f;
@@ -1357,6 +1400,7 @@ void Game::buildScene() {
     Plane left;
     left.point = Vec3(-FIELD_W * 0.5f - 0.1f, 0, 0);
     left.normal = Vec3(1, 0, 0);
+    left.oneSided = true;
     left.checker = true;
     left.colorA = Vec3(0.18f, 0.28f, 0.4f) * 0.45f + colP * 0.55f;
     left.colorB = Vec3(0.1f, 0.15f, 0.22f) * 0.55f + colP * 0.2f;
@@ -1370,6 +1414,16 @@ void Game::buildScene() {
     right.colorA = Vec3(0.18f, 0.28f, 0.4f) * 0.45f + colF * 0.55f;
     right.colorB = Vec3(0.1f, 0.15f, 0.22f) * 0.55f + colF * 0.2f;
     scene_.planes.push_back(right);
+
+    // Near end wall (behind the player). One-sided like the other walls, so cameras
+    // placed behind it (HIGH mode) look straight through; also gives the mirror
+    // ball something to reflect behind the paddle camera.
+    Plane near = back;
+    near.point = Vec3(0, 0, -END_WALL);
+    near.normal = Vec3(0, 0, 1);
+    near.colorA = Vec3(0.18f, 0.28f, 0.4f) * 0.45f + colP * 0.55f;
+    near.colorB = Vec3(0.1f, 0.15f, 0.22f) * 0.55f + colP * 0.2f;
+    scene_.planes.push_back(near);
 
     // colP / colF already set for theme floor/walls above
     paddleColors(colP, colF);
