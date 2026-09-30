@@ -77,6 +77,9 @@ using PFNGLGETUNIFORMLOCATIONPROC = GLint (*)(GLuint, const GLchar*);
 using PFNGLUNIFORM1IPROC = void (*)(GLint, GLint);
 using PFNGLUNIFORM1FPROC = void (*)(GLint, GLfloat);
 using PFNGLUNIFORM3FPROC = void (*)(GLint, GLfloat, GLfloat, GLfloat);
+using PFNGLUNIFORM1IVPROC = void (*)(GLint, GLsizei, const GLint*);
+using PFNGLUNIFORM1FVPROC = void (*)(GLint, GLsizei, const GLfloat*);
+using PFNGLUNIFORM3FVPROC = void (*)(GLint, GLsizei, const GLfloat*);
 using PFNGLGENVERTEXARRAYSPROC = void (*)(GLsizei, GLuint*);
 using PFNGLBINDVERTEXARRAYPROC = void (*)(GLuint);
 using PFNGLDELETEVERTEXARRAYSPROC = void (*)(GLsizei, const GLuint*);
@@ -115,6 +118,9 @@ PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation_ = nullptr;
 PFNGLUNIFORM1IPROC glUniform1i_ = nullptr;
 PFNGLUNIFORM1FPROC glUniform1f_ = nullptr;
 PFNGLUNIFORM3FPROC glUniform3f_ = nullptr;
+PFNGLUNIFORM1IVPROC glUniform1iv_ = nullptr;
+PFNGLUNIFORM1FVPROC glUniform1fv_ = nullptr;
+PFNGLUNIFORM3FVPROC glUniform3fv_ = nullptr;
 PFNGLGENVERTEXARRAYSPROC glGenVertexArrays_ = nullptr;
 PFNGLBINDVERTEXARRAYPROC glBindVertexArray_ = nullptr;
 PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays_ = nullptr;
@@ -165,6 +171,9 @@ bool loadAllProcs() {
     ok &= loadProc(glUniform1i_, "glUniform1i");
     ok &= loadProc(glUniform1f_, "glUniform1f");
     ok &= loadProc(glUniform3f_, "glUniform3f");
+    ok &= loadProc(glUniform1iv_, "glUniform1iv");
+    ok &= loadProc(glUniform1fv_, "glUniform1fv");
+    ok &= loadProc(glUniform3fv_, "glUniform3fv");
     ok &= loadProc(glGenVertexArrays_, "glGenVertexArrays");
     ok &= loadProc(glBindVertexArray_, "glBindVertexArray");
     ok &= loadProc(glDeleteVertexArrays_, "glDeleteVertexArrays");
@@ -317,6 +326,7 @@ bool GpuRaytracer::loadShaders() {
     }
 
     program_ = glCreateProgram_();
+    uniformCache_.clear();
     glAttachShader_(program_, vs);
     glAttachShader_(program_, fs);
     glLinkProgram_(program_);
@@ -432,23 +442,69 @@ bool GpuRaytracer::init(SDL_Window* window) {
 }
 
 void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
-    auto loc1i = [this](const char* n, int v) {
-        GLint loc = glGetUniformLocation_(program_, n);
+    auto find = [this](const char* n) -> GLint {
+        auto it = uniformCache_.find(n);
+        if (it != uniformCache_.end()) {
+            return it->second;
+        }
+        const GLint loc = glGetUniformLocation_(program_, n);
+        uniformCache_.emplace(n, loc);
+        return loc;
+    };
+    auto loc1i = [&](const char* n, int v) {
+        const GLint loc = find(n);
         if (loc >= 0) {
             glUniform1i_(loc, v);
         }
     };
-    auto loc1f = [this](const char* n, float v) {
-        GLint loc = glGetUniformLocation_(program_, n);
+    auto loc1f = [&](const char* n, float v) {
+        const GLint loc = find(n);
         if (loc >= 0) {
             glUniform1f_(loc, v);
         }
     };
-    auto loc3 = [this](const char* n, const Vec3& v) {
-        GLint loc = glGetUniformLocation_(program_, n);
+    auto loc3 = [&](const char* n, const Vec3& v) {
+        const GLint loc = find(n);
         if (loc >= 0) {
             glUniform3f_(loc, v.x, v.y, v.z);
         }
+    };
+    // Whole-array uploads: one GL call per uniform array instead of one per element.
+    auto arr3 = [&](const char* n, size_t count, auto getter) {
+        const GLint loc = find(n);
+        if (loc < 0 || count == 0) {
+            return;
+        }
+        std::vector<float> data(count * 3u);
+        for (size_t i = 0; i < count; ++i) {
+            const Vec3 v = getter(i);
+            data[i * 3u] = v.x;
+            data[i * 3u + 1u] = v.y;
+            data[i * 3u + 2u] = v.z;
+        }
+        glUniform3fv_(loc, static_cast<GLsizei>(count), data.data());
+    };
+    auto arr1f = [&](const char* n, size_t count, auto getter) {
+        const GLint loc = find(n);
+        if (loc < 0 || count == 0) {
+            return;
+        }
+        std::vector<float> data(count);
+        for (size_t i = 0; i < count; ++i) {
+            data[i] = getter(i);
+        }
+        glUniform1fv_(loc, static_cast<GLsizei>(count), data.data());
+    };
+    auto arr1i = [&](const char* n, size_t count, auto getter) {
+        const GLint loc = find(n);
+        if (loc < 0 || count == 0) {
+            return;
+        }
+        std::vector<GLint> data(count);
+        for (size_t i = 0; i < count; ++i) {
+            data[i] = getter(i);
+        }
+        glUniform1iv_(loc, static_cast<GLsizei>(count), data.data());
     };
 
     loc3("u_camPos", cam.pos);
@@ -468,58 +524,30 @@ void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {
     loc1i("u_shadowSamples", scene.shadowSamples);
     loc1f("u_exposure", scene.exposure);
 
-    int ns = std::min(static_cast<int>(scene.spheres.size()), MAX_SPHERES);
-    loc1i("u_numSpheres", ns);
-    for (int i = 0; i < ns; ++i) {
-        const auto& s = scene.spheres[static_cast<size_t>(i)];
-        char name[64];
-        std::snprintf(name, sizeof(name), "u_sphereCenter[%d]", i);
-        loc3(name, s.center);
-        std::snprintf(name, sizeof(name), "u_sphereRadius[%d]", i);
-        loc1f(name, s.radius);
-        std::snprintf(name, sizeof(name), "u_sphereColor[%d]", i);
-        loc3(name, s.color);
-        std::snprintf(name, sizeof(name), "u_sphereReflect[%d]", i);
-        loc1f(name, s.reflectivity);
-    }
+    const size_t ns = static_cast<size_t>(std::min(static_cast<int>(scene.spheres.size()), MAX_SPHERES));
+    loc1i("u_numSpheres", static_cast<int>(ns));
+    arr3("u_sphereCenter", ns, [&](size_t i) { return scene.spheres[i].center; });
+    arr1f("u_sphereRadius", ns, [&](size_t i) { return scene.spheres[i].radius; });
+    arr3("u_sphereColor", ns, [&](size_t i) { return scene.spheres[i].color; });
+    arr1f("u_sphereReflect", ns, [&](size_t i) { return scene.spheres[i].reflectivity; });
 
-    int nb = std::min(static_cast<int>(scene.boxes.size()), MAX_BOXES);
-    loc1i("u_numBoxes", nb);
-    for (int i = 0; i < nb; ++i) {
-        const auto& b = scene.boxes[static_cast<size_t>(i)];
-        char name[64];
-        std::snprintf(name, sizeof(name), "u_boxMin[%d]", i);
-        loc3(name, b.minb);
-        std::snprintf(name, sizeof(name), "u_boxMax[%d]", i);
-        loc3(name, b.maxb);
-        std::snprintf(name, sizeof(name), "u_boxColor[%d]", i);
-        loc3(name, b.color);
-        std::snprintf(name, sizeof(name), "u_boxReflect[%d]", i);
-        loc1f(name, b.reflectivity);
-    }
+    const size_t nb = static_cast<size_t>(std::min(static_cast<int>(scene.boxes.size()), MAX_BOXES));
+    loc1i("u_numBoxes", static_cast<int>(nb));
+    arr3("u_boxMin", nb, [&](size_t i) { return scene.boxes[i].minb; });
+    arr3("u_boxMax", nb, [&](size_t i) { return scene.boxes[i].maxb; });
+    arr3("u_boxColor", nb, [&](size_t i) { return scene.boxes[i].color; });
+    arr1f("u_boxReflect", nb, [&](size_t i) { return scene.boxes[i].reflectivity; });
 
-    int np = std::min(static_cast<int>(scene.planes.size()), MAX_PLANES);
-    loc1i("u_numPlanes", np);
-    for (int i = 0; i < np; ++i) {
-        const auto& p = scene.planes[static_cast<size_t>(i)];
-        char name[64];
-        std::snprintf(name, sizeof(name), "u_planePoint[%d]", i);
-        loc3(name, p.point);
-        std::snprintf(name, sizeof(name), "u_planeNormal[%d]", i);
-        loc3(name, p.normal);
-        std::snprintf(name, sizeof(name), "u_planeColorA[%d]", i);
-        loc3(name, p.colorA);
-        std::snprintf(name, sizeof(name), "u_planeColorB[%d]", i);
-        loc3(name, p.colorB);
-        std::snprintf(name, sizeof(name), "u_planeScale[%d]", i);
-        loc1f(name, p.scale);
-        std::snprintf(name, sizeof(name), "u_planeReflect[%d]", i);
-        loc1f(name, p.reflectivity);
-        std::snprintf(name, sizeof(name), "u_planeChecker[%d]", i);
-        loc1i(name, p.checker ? 1 : 0);
-        std::snprintf(name, sizeof(name), "u_planeOneSided[%d]", i);
-        loc1i(name, p.oneSided ? 1 : 0);
-    }
+    const size_t np = static_cast<size_t>(std::min(static_cast<int>(scene.planes.size()), MAX_PLANES));
+    loc1i("u_numPlanes", static_cast<int>(np));
+    arr3("u_planePoint", np, [&](size_t i) { return scene.planes[i].point; });
+    arr3("u_planeNormal", np, [&](size_t i) { return scene.planes[i].normal; });
+    arr3("u_planeColorA", np, [&](size_t i) { return scene.planes[i].colorA; });
+    arr3("u_planeColorB", np, [&](size_t i) { return scene.planes[i].colorB; });
+    arr1f("u_planeScale", np, [&](size_t i) { return scene.planes[i].scale; });
+    arr1f("u_planeReflect", np, [&](size_t i) { return scene.planes[i].reflectivity; });
+    arr1i("u_planeChecker", np, [&](size_t i) { return scene.planes[i].checker ? 1 : 0; });
+    arr1i("u_planeOneSided", np, [&](size_t i) { return scene.planes[i].oneSided ? 1 : 0; });
 }
 
 void GpuRaytracer::render(const Scene& scene, const Camera& cam) {

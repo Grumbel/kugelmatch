@@ -6,6 +6,8 @@
 #include <SDL.h>
 
 #include <cstdint>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 // OpenGL fragment-shader raytracer. Full analytic RT — no scene meshes.
@@ -61,6 +63,8 @@ private:
     float renderScale_ = 1.0f;
     int maxW_ = 0; // 0 = no clamp
     int maxH_ = 0;
+    // Uniform locations by name (queried once per name instead of per element per frame).
+    mutable std::unordered_map<std::string, int> uniformCache_;
     bool ready_ = false;
     bool useFbo_ = false;
 
