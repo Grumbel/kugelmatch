@@ -8,6 +8,9 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 ## Unreleased (1.2.14-dev)
 
 ### Rendering
+- GPU raytracer: any-hit occlusion for soft shadows (skip closest-hit work on
+  shadow rays), test planes before boxes so `best.t` prunes glyph geometry, and
+  compute box `invDir` once per ray
 - Desktop OpenGL 3.3 core: create and bind a VAO (required for attribute draws;
   without it the GPU path rendered a black screen). GLES2 unchanged.
 - GPU FBO is sized to the raytrace resolution (not the drawable); viewport is

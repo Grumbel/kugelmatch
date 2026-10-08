@@ -81,6 +81,43 @@ Hit intersect(vec3 ro, vec3 rd, float fw0, float fa) {
     best.normal = vec3(0.0);
     best.point = vec3(0.0);
 
+    // Planes first: a few infinite surfaces set an upper bound on t so the many
+    // glyph/scoreboard boxes can early-out on t >= best.t.
+    for (int i = 0; i < MAX_PLANES; ++i) {
+        if (i >= u_numPlanes) break;
+        float denom = dot(u_planeNormal[i], rd);
+        if (abs(denom) < 1e-6) continue;
+        if (u_planeOneSided[i] != 0 && denom > 0.0) continue;
+        float t = dot(u_planePoint[i] - ro, u_planeNormal[i]) / denom;
+        if (t <= 1e-4 || t >= best.t) continue;
+
+        best.t = t;
+        best.point = ro + rd * t;
+        best.normal = u_planeNormal[i];
+        best.reflectivity = u_planeReflect[i];
+        best.radius = 0.0;
+        best.hit = true;
+
+        if (u_planeChecker[i] != 0) {
+            vec3 n = abs(u_planeNormal[i]);
+            vec3 bitangent = n.y > 0.9
+                ? vec3(1.0, 0.0, 0.0)
+                : normalize(cross(u_planeNormal[i], vec3(0.0, 1.0, 0.0)));
+            vec3 tangent = cross(bitangent, u_planeNormal[i]);
+            float u = dot(best.point - u_planePoint[i], bitangent);
+            float v = dot(best.point - u_planePoint[i], tangent);
+            float w = fw0 + fa * t;
+            float wu = abs(dot(rd, bitangent)) * w + 1e-4;
+            float wv = abs(dot(rd, tangent)) * w + 1e-4;
+            float sU = filteredSquare(u * u_planeScale[i], wu * u_planeScale[i]);
+            float sV = filteredSquare(v * u_planeScale[i], wv * u_planeScale[i]);
+            float checker = 0.5 - 0.5 * sU * sV;
+            best.color = mix(u_planeColorA[i], u_planeColorB[i], checker);
+        } else {
+            best.color = u_planeColorA[i];
+        }
+    }
+
     for (int i = 0; i < MAX_SPHERES; ++i) {
         if (i >= u_numSpheres) break;
         vec3 oc = ro - u_sphereCenter[i];
@@ -102,9 +139,10 @@ Hit intersect(vec3 ro, vec3 rd, float fw0, float fa) {
         }
     }
 
+    // invDir once per ray (was recomputed inside the box loop).
+    vec3 invDir = 1.0 / rd;
     for (int i = 0; i < MAX_BOXES; ++i) {
         if (i >= u_numBoxes) break;
-        vec3 invDir = 1.0 / rd;
         vec3 t0 = (u_boxMin[i] - ro) * invDir;
         vec3 t1 = (u_boxMax[i] - ro) * invDir;
         vec3 tmin3 = min(t0, t1);
@@ -120,7 +158,7 @@ Hit intersect(vec3 ro, vec3 rd, float fw0, float fa) {
         vec3 center = (u_boxMin[i] + u_boxMax[i]) * 0.5;
         vec3 d = best.point - center;
         vec3 halfExtent = (u_boxMax[i] - u_boxMin[i]) * 0.5;
-        // Face normal = axis along which the hit point is closest to the box surface.
+        // Face normal = axis along which the hit is closest to the box surface.
         vec3 q = d / max(abs(halfExtent), vec3(1e-6));
         vec3 aq = abs(q);
         if (aq.x >= aq.y && aq.x >= aq.z) {
@@ -136,83 +174,75 @@ Hit intersect(vec3 ro, vec3 rd, float fw0, float fa) {
         best.hit = true;
     }
 
+    return best;
+}
+
+// Any-hit occlusion for soft shadows: stop at the first surface closer than maxT.
+// Skips closest-hit bookkeeping (normals, materials, checker filtering).
+bool occluded(vec3 ro, vec3 rd, float maxT) {
+    for (int i = 0; i < MAX_SPHERES; ++i) {
+        if (i >= u_numSpheres) break;
+        vec3 oc = ro - u_sphereCenter[i];
+        float b = dot(oc, rd);
+        float c = dot(oc, oc) - u_sphereRadius[i] * u_sphereRadius[i];
+        float disc = b * b - c;
+        if (disc < 0.0) continue;
+        float sq = sqrt(disc);
+        float t = -b - sq;
+        if (t < 1e-4) t = -b + sq;
+        if (t > 1e-4 && t < maxT) return true;
+    }
+
+    vec3 invDir = 1.0 / rd;
+    for (int i = 0; i < MAX_BOXES; ++i) {
+        if (i >= u_numBoxes) break;
+        vec3 t0 = (u_boxMin[i] - ro) * invDir;
+        vec3 t1 = (u_boxMax[i] - ro) * invDir;
+        vec3 tmin3 = min(t0, t1);
+        vec3 tmax3 = max(t0, t1);
+        float tmin = max(max(tmin3.x, tmin3.y), tmin3.z);
+        float tmax = min(min(tmax3.x, tmax3.y), tmax3.z);
+        if (tmax < 0.0 || tmin > tmax) continue;
+        float t = tmin > 1e-4 ? tmin : tmax;
+        if (t > 1e-4 && t < maxT) return true;
+    }
+
     for (int i = 0; i < MAX_PLANES; ++i) {
         if (i >= u_numPlanes) break;
         float denom = dot(u_planeNormal[i], rd);
         if (abs(denom) < 1e-6) continue;
-        if (u_planeOneSided[i] != 0 && denom > 0.0) continue; // seen from behind
+        if (u_planeOneSided[i] != 0 && denom > 0.0) continue;
         float t = dot(u_planePoint[i] - ro, u_planeNormal[i]) / denom;
-        if (t < 1e-4 || t >= best.t) continue;
-
-        best.t = t;
-        best.point = ro + rd * t;
-        best.normal = denom < 0.0 ? u_planeNormal[i] : -u_planeNormal[i];
-        best.reflectivity = u_planeReflect[i];
-        best.radius = 0.0;
-
-        if (u_planeChecker[i] != 0) {
-            float u, v;   // position on the plane's tangent axes
-            float du, dv; // ray direction on the same axes
-            if (abs(u_planeNormal[i].y) > 0.9) {
-                u = best.point.x; v = best.point.z;
-                du = rd.x;        dv = rd.z;
-            } else if (abs(u_planeNormal[i].x) > 0.9) {
-                u = best.point.z; v = best.point.y;
-                du = rd.z;        dv = rd.y;
-            } else {
-                u = best.point.x; v = best.point.y;
-                du = rd.x;        dv = rd.y;
-            }
-            // Pixel footprint on the plane: an ellipse stretched by 1/cos along the
-            // ray's projected direction; filter the checker over its axis-aligned extents.
-            float w = fw0 + fa * t;
-            float minorW = w;
-            float majorW = w / max(0.05, abs(denom));
-            float len = sqrt(du * du + dv * dv);
-            float mu = len > 1e-6 ? du / len : 1.0;
-            float mv = len > 1e-6 ? dv / len : 0.0;
-            float wu = sqrt(majorW * majorW * mu * mu + minorW * minorW * mv * mv);
-            float wv = sqrt(majorW * majorW * mv * mv + minorW * minorW * mu * mu);
-            float sU = filteredSquare(u * u_planeScale[i], wu * u_planeScale[i]);
-            float sV = filteredSquare(v * u_planeScale[i], wv * u_planeScale[i]);
-            float fracA = 0.5 - 0.5 * sU * sV; // 1 = fully colorA
-            best.color = mix(u_planeColorB[i], u_planeColorA[i], fracA);
-        } else {
-            best.color = u_planeColorA[i];
-        }
-        best.hit = true;
+        if (t > 1e-4 && t < maxT) return true;
     }
-
-    return best;
+    return false;
 }
 
-// Local lighting for a single hit (no recursion — Mesa forbids recursive GLSL).
-// Soft shadow: up to 8 fixed disk samples; u_shadowSamples selects how many.
 float softShadow(vec3 p, vec3 n) {
-    float lit = 0.0;
     vec3 offsets[8];
-    offsets[0] = vec3( 0.35, 0.0,  0.15);
-    offsets[1] = vec3(-0.25, 0.1, -0.30);
-    offsets[2] = vec3( 0.10, 0.0, -0.35);
-    offsets[3] = vec3(-0.15, 0.05, 0.40);
-    offsets[4] = vec3( 0.40, 0.05, -0.10);
-    offsets[5] = vec3(-0.40, 0.0,  0.20);
+    offsets[0] = vec3( 0.0, 0.0,  0.0);
+    offsets[1] = vec3( 0.5, 0.2,  0.1);
+    offsets[2] = vec3(-0.4, 0.3, -0.2);
+    offsets[3] = vec3( 0.2, 0.1, -0.5);
+    offsets[4] = vec3(-0.3, 0.4,  0.3);
+    offsets[5] = vec3( 0.1, 0.5, -0.1);
     offsets[6] = vec3( 0.05, 0.1,  0.45);
     offsets[7] = vec3(-0.05, 0.0, -0.45);
     float lightRadius = 0.55;
     int samples = int(clamp(float(u_shadowSamples), 1.0, 8.0));
+    float shadowFactor = 0.0;
     for (int i = 0; i < 8; ++i) {
         if (i >= samples) break;
         vec3 lp = u_lightPos + offsets[i] * lightRadius;
         vec3 toL = lp - p;
         float dist = length(toL);
-        toL /= max(dist, 1e-4);
-        Hit sh = intersect(p + n * 1e-3, toL, 0.0, 0.0);
-        if (!(sh.hit && sh.t < dist)) {
-            lit += 1.0;
+        toL /= dist;
+        // Any-hit only — first blocker closer than the light is enough.
+        if (!occluded(p + n * 1e-3, toL, dist - 1e-3)) {
+            shadowFactor += 1.0;
         }
     }
-    return mix(0.22, 1.0, lit / float(samples));
+    return 0.22 + 0.78 * (shadowFactor / float(samples));
 }
 
 vec3 shadeHit(Hit h, vec3 rd) {
