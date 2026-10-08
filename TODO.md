@@ -36,5 +36,5 @@ Base of this work line: `a7bcc21` (Initial checkin)
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-040.1-camera-polish-a7bcc21.bundle`
-This: `kugelmatch-041.1-gles2-gpu-a7bcc21.bundle`
+Previous: `kugelmatch-041.2-gles2-ctor-fix-a7bcc21.bundle`
+This: `kugelmatch-041.3-gles2-ctor-fix-a7bcc21.bundle`
