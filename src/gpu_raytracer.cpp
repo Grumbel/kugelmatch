@@ -132,6 +132,9 @@ using PFNGLENABLEVERTEXATTRIBARRAYPROC = void (*)(GLuint);
 using PFNGLDISABLEVERTEXATTRIBARRAYPROC = void (*)(GLuint);
 using PFNGLVERTEXATTRIBPOINTERPROC = void (*)(GLuint, GLint, GLenum, GLboolean, GLsizei, const void*);
 using PFNGLDRAWARRAYSPROC = void (*)(GLenum, GLint, GLsizei);
+using PFNGLGENVERTEXARRAYSPROC = void (*)(GLsizei, GLuint*);
+using PFNGLBINDVERTEXARRAYPROC = void (*)(GLuint);
+using PFNGLDELETEVERTEXARRAYSPROC = void (*)(GLsizei, const GLuint*);
 using PFNGLVIEWPORTPROC = void (*)(GLint, GLint, GLsizei, GLsizei);
 using PFNGLCLEARPROC = void (*)(GLenum);
 using PFNGLCLEARCOLORPROC = void (*)(GLfloat, GLfloat, GLfloat, GLfloat);
@@ -180,6 +183,9 @@ PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray_ = nullptr;
 PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray_ = nullptr;
 PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer_ = nullptr;
 PFNGLDRAWARRAYSPROC glDrawArrays_ = nullptr;
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays_ = nullptr;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray_ = nullptr;
+PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays_ = nullptr;
 PFNGLVIEWPORTPROC glViewport_ = nullptr;
 PFNGLCLEARPROC glClear_ = nullptr;
 PFNGLCLEARCOLORPROC glClearColor_ = nullptr;
@@ -240,6 +246,12 @@ bool loadAllProcs() {
     ok &= loadProc(glDisableVertexAttribArray_, "glDisableVertexAttribArray");
     ok &= loadProc(glVertexAttribPointer_, "glVertexAttribPointer");
     ok &= loadProc(glDrawArrays_, "glDrawArrays");
+#if !defined(KUGELMATCH_USE_OPENGLES2) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    // OpenGL 3.3 core requires a bound VAO for any attribute draw.
+    ok &= loadProc(glGenVertexArrays_, "glGenVertexArrays");
+    ok &= loadProc(glBindVertexArray_, "glBindVertexArray");
+    ok &= loadProc(glDeleteVertexArrays_, "glDeleteVertexArrays");
+#endif
     ok &= loadProc(glViewport_, "glViewport");
     ok &= loadProc(glClear_, "glClear");
     ok &= loadProc(glClearColor_, "glClearColor");
@@ -351,6 +363,10 @@ void GpuRaytracer::shutdown() {
     if (glctx_) {
         SDL_GL_MakeCurrent(window_, glctx_);
         destroyFbo();
+        if (vao_ && glDeleteVertexArrays_) {
+            glDeleteVertexArrays_(1, &vao_);
+            vao_ = 0;
+        }
         if (vbo_) {
             glDeleteBuffers_(1, &vbo_);
             vbo_ = 0;
@@ -599,6 +615,14 @@ bool GpuRaytracer::init(SDL_Window* window) {
     glBufferData_(GL_ARRAY_BUFFER, sizeof(kFullscreenTri), kFullscreenTri, GL_STATIC_DRAW);
     glBindBuffer_(GL_ARRAY_BUFFER, 0);
 
+    // Core profile: a VAO must be bound for glVertexAttribPointer / glDrawArrays.
+    // GLES2 does not require one (and may not expose the entry points).
+    if (glGenVertexArrays_ && glBindVertexArray_) {
+        glGenVertexArrays_(1, &vao_);
+        glBindVertexArray_(vao_);
+        glBindVertexArray_(0);
+    }
+
     syncDrawableSize();
     recomputeRtSize();
     ready_ = true;
@@ -632,7 +656,13 @@ bool GpuRaytracer::ensureFbo(int w, int h) {
     glGenTextures_(1, &fboTex_);
     glBindTexture_(GL_TEXTURE_2D, fboTex_);
     // GLES2: internal format must match format (no GL_RGBA8).
-    glTexImage2D_(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    // Desktop core: prefer sized GL_RGBA8 (0x8058).
+#if defined(KUGELMATCH_USE_OPENGLES2) || defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+    const GLint internalFmt = GL_RGBA;
+#else
+    const GLint internalFmt = 0x8058; // GL_RGBA8
+#endif
+    glTexImage2D_(GL_TEXTURE_2D, 0, internalFmt, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri_(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -655,12 +685,18 @@ bool GpuRaytracer::ensureFbo(int w, int h) {
 }
 
 void GpuRaytracer::drawFullscreenTriangle(int aPosLoc) const {
+    if (vao_ && glBindVertexArray_) {
+        glBindVertexArray_(vao_);
+    }
     glBindBuffer_(GL_ARRAY_BUFFER, vbo_);
     glEnableVertexAttribArray_(static_cast<GLuint>(aPosLoc));
     glVertexAttribPointer_(static_cast<GLuint>(aPosLoc), 2, GL_FLOAT, GL_FALSE, 0, nullptr);
     glDrawArrays_(GL_TRIANGLES, 0, 3);
     glDisableVertexAttribArray_(static_cast<GLuint>(aPosLoc));
     glBindBuffer_(GL_ARRAY_BUFFER, 0);
+    if (vao_ && glBindVertexArray_) {
+        glBindVertexArray_(0);
+    }
 }
 
 void GpuRaytracer::uploadScene(const Scene& scene, const Camera& cam) const {

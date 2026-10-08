@@ -8,6 +8,8 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 ## Unreleased (1.2.14-dev)
 
 ### Rendering
+- Desktop OpenGL 3.3 core: create and bind a VAO (required for attribute draws;
+  without it the GPU path rendered a black screen). GLES2 unchanged.
 - GPU FBO is sized to the raytrace resolution (not the drawable); viewport is
   always the full FBO and the blit samples the whole texture. Fixes broken
   supersampling (scale > 1) and wrong viewport when max-resolution clamp made

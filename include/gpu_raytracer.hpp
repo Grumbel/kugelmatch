@@ -59,6 +59,7 @@ private:
     unsigned program_ = 0;      // raytrace
     unsigned blitProgram_ = 0;  // FBO → window
     unsigned vbo_ = 0;          // fullscreen triangle (a_pos)
+    unsigned vao_ = 0;          // required for OpenGL 3.3 core; unused on GLES2
     int aPosLoc_ = -1;
     int aPosBlitLoc_ = -1;
     int uTexLoc_ = -1;

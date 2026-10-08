@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** GPU FBO sized to raytrace res (fix scale>1 viewport); aspect-preserving max clamp
+**Tip:** Desktop GL 3.3 VAO (black screen fix) + FBO=rt viewport fix
 
 ## Done
 
@@ -45,4 +45,5 @@ Base short: `a7bcc21`
 Previous: `kugelmatch-041.3-gles2-ctor-fix-a7bcc21.bundle`
 Previous: `kugelmatch-042.1-gles2-default-ports-a7bcc21.bundle`
 Previous: `kugelmatch-046.2-embedded-blit-gl-a7bcc21.bundle`
-This: `kugelmatch-047.1-fbo-rt-viewport-a7bcc21.bundle`
+Previous: `kugelmatch-047.1-fbo-rt-viewport-a7bcc21.bundle`
+This: `kugelmatch-048.1-gl33-vao-a7bcc21.bundle`
