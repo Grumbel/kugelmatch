@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 // OpenGL ES 2.0 fragment-shader raytracer. Full analytic RT — no scene meshes.
@@ -78,12 +77,27 @@ private:
     float renderScale_ = 1.0f;
     int maxW_ = 0; // 0 = no clamp
     int maxH_ = 0;
-    // Uniform locations by name (queried once per name instead of per element per frame).
-    mutable std::unordered_map<std::string, int> uniformCache_;
+    // Raytrace program uniform locations (filled once after link).
+    struct Uniforms {
+        int camPos = -1, camForward = -1, camRight = -1, camUp = -1;
+        int fovScale = -1, aspect = -1, pixelAngle = -1;
+        int lightPos = -1, lightColor = -1, ambient = -1, skyColor = -1;
+        int maxBounces = -1, shadowSamples = -1, exposure = -1;
+        int numSpheres = -1, sphereCenter = -1, sphereRadius = -1;
+        int sphereColor = -1, sphereReflect = -1;
+        int numBoxes = -1, boxMin = -1, boxMax = -1, boxColor = -1, boxReflect = -1;
+        int numPlanes = -1, planePoint = -1, planeNormal = -1;
+        int planeColorA = -1, planeColorB = -1, planeScale = -1, planeReflect = -1;
+        int planeChecker = -1, planeOneSided = -1;
+    } u_;
+    // Scratch for bulk uniform uploads (avoid per-frame heap alloc).
+    mutable std::vector<float> uploadF_;
+    mutable std::vector<int> uploadI_;
     bool ready_ = false;
     bool useFbo_ = false;
 
     bool loadShaders();
+    void cacheUniformLocations();
     static unsigned compileShader(unsigned type, const char* source);
     bool linkProgram(unsigned& outProg, unsigned vs, unsigned fs, const char* label);
     void uploadScene(const Scene& scene, const Camera& cam) const;

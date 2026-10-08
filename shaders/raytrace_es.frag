@@ -250,16 +250,19 @@ vec3 shadeHit(Hit h, vec3 rd) {
 
     vec3 toLight = normalize(u_lightPos - h.point);
     float ndotl = max(0.0, dot(h.normal, toLight));
-
-    float shadowFactor = softShadow(h.point, h.normal);
-
-    col += h.color * u_lightColor * ndotl * shadowFactor;
-
     vec3 viewDir = -rd;
     vec3 halfV = normalize(toLight + viewDir);
     float spec = pow(max(0.0, dot(h.normal, halfV)), 32.0);
-    col += u_lightColor * (spec * 0.4 * shadowFactor);
 
+    // Soft shadows are the expensive part. Skip them when neither diffuse nor
+    // specular would contribute (back-facing to the light with no highlight).
+    if (ndotl <= 0.0 && spec <= 1e-4) {
+        return col;
+    }
+
+    float shadowFactor = softShadow(h.point, h.normal);
+    col += h.color * u_lightColor * ndotl * shadowFactor;
+    col += u_lightColor * (spec * 0.4 * shadowFactor);
     return col;
 }
 
