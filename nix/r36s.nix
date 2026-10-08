@@ -155,7 +155,7 @@ let
       "-DPROJECT_VERSION_FULL=${version}"
       "-DPROJECT_DATE=${date}"
       # eoan's SDL2 CMake files name /usr: give the sysroot's directly.
-      "-DSDL2_INCLUDE_DIRS=${sysroot}/usr/include"
+      "-DSDL2_INCLUDE_DIRS=${sysroot}/usr/include/SDL2"
       "-DSDL2_LIBRARIES=${sdlStub}/lib/libSDL2.so"
       # Mali-G31 / ArkOS: ES 2.0 context (see SuperTux Origins SUPERTUX_R36S).
       "-DKUGELMATCH_OPENGLES2=ON"
