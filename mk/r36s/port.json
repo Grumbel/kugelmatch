@@ -4,7 +4,7 @@
   "items": [
     {
       "name": "KugelMatch",
-      "directory": "KugelMatch",
+      "directory": "kugelmatch",
       "script": "KugelMatch.sh",
       "description": "Raytraced Pong (OpenGL ES 2.0 GPU raytracer)",
       "genres": ["arcade", "action"]

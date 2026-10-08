@@ -200,7 +200,7 @@ float softShadow(vec3 p, vec3 n) {
     offsets[6] = vec3( 0.05, 0.1,  0.45);
     offsets[7] = vec3(-0.05, 0.0, -0.45);
     float lightRadius = 0.55;
-    int samples = clamp(u_shadowSamples, 1, 8);
+    int samples = int(clamp(float(u_shadowSamples), 1.0, 8.0));
     for (int i = 0; i < 8; ++i) {
         if (i >= samples) break;
         vec3 lp = u_lightPos + offsets[i] * lightRadius;
@@ -242,7 +242,7 @@ vec3 trace(vec3 ro, vec3 rd) {
     float fw0 = 0.0;
     float fa = u_pixelAngle;
 
-    int maxB = clamp(u_maxBounces, 0, 3);
+    int maxB = int(clamp(float(u_maxBounces), 0.0, 3.0));
     for (int bounce = 0; bounce <= 3; ++bounce) {
         if (bounce > maxB) {
             break;

@@ -23,7 +23,8 @@ Base of this work line: `a7bcc21` (Initial checkin)
 - [x] F12 screenshots + headless dev flags (`--shot`, `--fixed-dt`, `--start`, ...)
 - [x] GPU backend: OpenGL ES 2.0 (GLSL ES 1.00, VBO, textured FBO blit)
 - [x] GLES2 is the default backend (`--gpu`; `--cpu` still available)
-- [x] Platform packaging skeleton: Win32/64, WASM, Android, R36S (kurvenrausch-style)
+- [x] Platform packaging skeleton
+- [x] R36S: GLSL ES integer clamp fix + PortMaster launcher: Win32/64, WASM, Android, R36S (kurvenrausch-style)
 
 ## Open / follow-ups
 
@@ -42,4 +43,4 @@ Base of this work line: `a7bcc21` (Initial checkin)
 Base short: `a7bcc21`
 Previous: `kugelmatch-041.3-gles2-ctor-fix-a7bcc21.bundle`
 Previous: `kugelmatch-042.1-gles2-default-ports-a7bcc21.bundle`
-This: `kugelmatch-042.2-r36s-sdl-include-a7bcc21.bundle`
+This: `kugelmatch-042.3-r36s-gles-clamp-launcher-a7bcc21.bundle`
