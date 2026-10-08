@@ -43,4 +43,4 @@ Base of this work line: `a7bcc21` (Initial checkin)
 Base short: `a7bcc21`
 Previous: `kugelmatch-041.3-gles2-ctor-fix-a7bcc21.bundle`
 Previous: `kugelmatch-042.1-gles2-default-ports-a7bcc21.bundle`
-This: `kugelmatch-043.9-autoscale-target-fps-a7bcc21.bundle`
+This: `kugelmatch-044.1-remove-ball-trail-a7bcc21.bundle`

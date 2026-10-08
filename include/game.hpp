@@ -163,12 +163,6 @@ private:
     float serveTimer_ = 0.0f;
     bool nextServeTowardPlayer_ = false;
     float ballFlash_ = 0.0f;
-    static constexpr int TRAIL_LEN = 4;
-    static constexpr float TRAIL_STEP = 0.022f;  // seconds between trail samples
-    float trailX_[TRAIL_LEN] = {};
-    float trailZ_[TRAIL_LEN] = {};
-    float trailTimer_ = 0.0f;
-    void pushTrail(float dt);
 
     // Short-lived feedback animations (1 → 0)
     float playerRecoil_ = 0.0f;  // paddle kick-back after hitting the ball

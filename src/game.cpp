@@ -344,10 +344,6 @@ void Game::queueServe(bool towardPlayer) {
     ballVX_ = 0.0f;
     ballVZ_ = 0.0f;
     ballFlash_ = 0.0f;
-    for (int i = 0; i < TRAIL_LEN; ++i) {
-        trailX_[i] = ballX_;
-        trailZ_[i] = ballZ_;
-    }
 }
 
 
@@ -726,7 +722,6 @@ void Game::updateDemo(float dt) {
     ballX_ += ballVX_ * dt;
     ballZ_ += ballVZ_ * dt;
 
-    pushTrail(dt);
 
     float wall = FIELD_W * 0.5f - BALL_R;
     if (ballX_ < -wall) {
@@ -780,10 +775,6 @@ void Game::startMatch() {
     attractTime_ = 0.0f;
     replayTimer_ = 0.0f;
     serveTimer_ = 0.0f;
-    for (int i = 0; i < TRAIL_LEN; ++i) {
-        trailX_[i] = 0.0f;
-        trailZ_[i] = FIELD_L * 0.5f;
-    }
     queueServe(false);
 }
 
@@ -804,10 +795,6 @@ void Game::enterAttract() {
     resetBall(false);
     ballVZ_ *= 0.7f;
     ballVX_ *= 0.7f;
-    for (int i = 0; i < TRAIL_LEN; ++i) {
-        trailX_[i] = ballX_;
-        trailZ_[i] = ballZ_;
-    }
 }
 
 void Game::handleInput(float dt) {
@@ -890,28 +877,6 @@ void Game::updateShake(float dt) {
     if (shake_ < 0.001f) {
         shake_ = 0.0f;
     }
-}
-
-// Soft ghost trail: sampled at a fixed time step so its length does not depend on
-// the frame rate. Entry 0 always tracks the ball; older entries are past positions.
-void Game::pushTrail(float dt) {
-    trailTimer_ += dt;
-    int steps = 0;
-    while (trailTimer_ >= TRAIL_STEP && steps < TRAIL_LEN) {
-        trailTimer_ -= TRAIL_STEP;
-        for (int i = TRAIL_LEN - 1; i > 1; --i) {
-            trailX_[i] = trailX_[i - 1];
-            trailZ_[i] = trailZ_[i - 1];
-        }
-        trailX_[1] = trailX_[0];
-        trailZ_[1] = trailZ_[0];
-        ++steps;
-    }
-    if (trailTimer_ >= TRAIL_STEP) {
-        trailTimer_ = 0.0f;
-    }
-    trailX_[0] = ballX_;
-    trailZ_[0] = ballZ_;
 }
 
 void Game::cameraImpulse(float fovDegrees, float recoil) {
@@ -1159,8 +1124,7 @@ void Game::update(float dt) {
             }
         }
 
-        pushTrail(dt);
-    }
+        }
 
     if (ballZ_ < -GOAL_MARGIN) {
         aiScore_++;
@@ -1553,23 +1517,6 @@ void Game::buildScene() {
         ball.reflectivity = 0.85f;
     }
     scene_.spheres.push_back(ball);
-
-    const bool showTrail =
-        (state_ == GameState::Play && serveTimer_ <= 0.0f && replayTimer_ <= 0.0f) ||
-        (state_ == GameState::Attract && demoActive_);
-    if (showTrail) {
-        for (int i = 1; i < TRAIL_LEN; ++i) {
-            Sphere g;
-            // Luminous tail: bright, barely reflective and shrinking with age. A dim
-            // mirror sphere beside the ball just reads as a black lump.
-            float fade = 1.0f - static_cast<float>(i) / static_cast<float>(TRAIL_LEN);
-            g.center = Vec3(trailX_[i], BALL_R * (0.55f + 0.3f * fade), trailZ_[i]);
-            g.radius = BALL_R * (0.25f + 0.5f * fade);
-            g.color = Vec3(0.55f, 0.8f, 1.0f) * (0.3f + 1.1f * fade);
-            g.reflectivity = 0.08f;
-            scene_.spheres.push_back(g);
-        }
-    }
 
     // Ceiling-mounted decorative orbs (theme-tinted).
     // Kept off walls and floor so the playfield stays clear for play.
