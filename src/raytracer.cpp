@@ -39,6 +39,60 @@ CpuRaytracer::~CpuRaytracer() {
 Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
     Hit best;
 
+    // Planes first so best.t prunes the (often many) glyph boxes.
+    for (const auto& p : scene.planes) {
+        float denom = p.normal.dot(ray.dir);
+        if (std::abs(denom) < 1e-6f) {
+            continue;
+        }
+        if (p.oneSided && denom > 0.0f) {
+            continue; // seen from behind
+        }
+        float t = (p.point - ray.origin).dot(p.normal) / denom;
+        if (t <= 1e-4f || t >= best.t) {
+            continue;
+        }
+        best.t = t;
+        best.point = ray.origin + ray.dir * t;
+        best.normal = p.normal;
+        best.reflectivity = p.reflectivity;
+        best.radius = 0.0f;
+        if (p.checker) {
+            float u, v, du, dv;
+            if (std::fabs(p.normal.y) > 0.9f) {
+                u = best.point.x;
+                v = best.point.z;
+                du = ray.dir.x;
+                dv = ray.dir.z;
+            } else if (std::fabs(p.normal.x) > 0.9f) {
+                u = best.point.z;
+                v = best.point.y;
+                du = ray.dir.z;
+                dv = ray.dir.y;
+            } else {
+                u = best.point.x;
+                v = best.point.y;
+                du = ray.dir.x;
+                dv = ray.dir.y;
+            }
+            const float w = ray.footprint0 + ray.spread * t;
+            const float minor = w;
+            const float major = w / std::max(0.05f, std::fabs(denom));
+            const float len = std::sqrt(du * du + dv * dv);
+            const float mu = len > 1e-6f ? du / len : 1.0f;
+            const float mv = len > 1e-6f ? dv / len : 0.0f;
+            const float wu = std::sqrt(major * major * mu * mu + minor * minor * mv * mv);
+            const float wv = std::sqrt(major * major * mv * mv + minor * minor * mu * mu);
+            const float sU = filteredSquare(u * p.scale, wu * p.scale);
+            const float sV = filteredSquare(v * p.scale, wv * p.scale);
+            const float fracA = 0.5f - 0.5f * sU * sV;
+            best.color = p.colorB + (p.colorA - p.colorB) * fracA;
+        } else {
+            best.color = p.colorA;
+        }
+        best.hit = true;
+    }
+
     for (const auto& s : scene.spheres) {
         Vec3 oc = ray.origin - s.center;
         float b = oc.dot(ray.dir);
@@ -63,12 +117,11 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
         }
     }
 
+    auto safeInv = [](float d) {
+        return (std::fabs(d) < 1e-8f) ? 1e8f : (1.0f / d);
+    };
+    const Vec3 invDir(safeInv(ray.dir.x), safeInv(ray.dir.y), safeInv(ray.dir.z));
     for (const auto& box : scene.boxes) {
-        // Safe reciprocal: zero dir components → no hit on that axis slab
-        auto safeInv = [](float d) {
-            return (std::fabs(d) < 1e-8f) ? 1e8f : (1.0f / d);
-        };
-        Vec3 invDir(safeInv(ray.dir.x), safeInv(ray.dir.y), safeInv(ray.dir.z));
         float t1 = (box.minb.x - ray.origin.x) * invDir.x;
         float t2 = (box.maxb.x - ray.origin.x) * invDir.x;
         float t3 = (box.minb.y - ray.origin.y) * invDir.y;
@@ -92,8 +145,6 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
         Vec3 center = (box.minb + box.maxb) * 0.5f;
         Vec3 d = best.point - center;
         Vec3 halfExtent = (box.maxb - box.minb) * 0.5f;
-        // Face normal = axis along which the hit point is closest to the box surface
-        // (dominant normalized offset). Robust for thin boxes and grazing hits.
         const float qx = d.x / std::max(std::fabs(halfExtent.x), 1e-6f);
         const float qy = d.y / std::max(std::fabs(halfExtent.y), 1e-6f);
         const float qz = d.z / std::max(std::fabs(halfExtent.z), 1e-6f);
@@ -111,67 +162,64 @@ Hit CpuRaytracer::intersect(const Ray& ray, const Scene& scene) const {
         best.hit = true;
     }
 
+    return best;
+}
+
+bool CpuRaytracer::occluded(const Ray& ray, const Scene& scene, float maxT) const {
+    for (const auto& s : scene.spheres) {
+        Vec3 oc = ray.origin - s.center;
+        float b = oc.dot(ray.dir);
+        float c = oc.length2() - s.radius * s.radius;
+        float disc = b * b - c;
+        if (disc < 0.0f) {
+            continue;
+        }
+        float sq = std::sqrt(disc);
+        float t = -b - sq;
+        if (t < 1e-4f) {
+            t = -b + sq;
+        }
+        if (t > 1e-4f && t < maxT) {
+            return true;
+        }
+    }
+
+    auto safeInv = [](float d) {
+        return (std::fabs(d) < 1e-8f) ? 1e8f : (1.0f / d);
+    };
+    const Vec3 invDir(safeInv(ray.dir.x), safeInv(ray.dir.y), safeInv(ray.dir.z));
+    for (const auto& box : scene.boxes) {
+        float t1 = (box.minb.x - ray.origin.x) * invDir.x;
+        float t2 = (box.maxb.x - ray.origin.x) * invDir.x;
+        float t3 = (box.minb.y - ray.origin.y) * invDir.y;
+        float t4 = (box.maxb.y - ray.origin.y) * invDir.y;
+        float t5 = (box.minb.z - ray.origin.z) * invDir.z;
+        float t6 = (box.maxb.z - ray.origin.z) * invDir.z;
+        float tmin = std::max(std::max(std::min(t1, t2), std::min(t3, t4)), std::min(t5, t6));
+        float tmax = std::min(std::min(std::max(t1, t2), std::max(t3, t4)), std::max(t5, t6));
+        if (tmax < 0.0f || tmin > tmax) {
+            continue;
+        }
+        float t = tmin > 1e-4f ? tmin : tmax;
+        if (t > 1e-4f && t < maxT) {
+            return true;
+        }
+    }
+
     for (const auto& p : scene.planes) {
         float denom = p.normal.dot(ray.dir);
         if (std::abs(denom) < 1e-6f) {
             continue;
         }
         if (p.oneSided && denom > 0.0f) {
-            continue; // seen from behind
-        }
-        float t = (p.point - ray.origin).dot(p.normal) / denom;
-        if (t < 1e-4f || t >= best.t) {
             continue;
         }
-
-        best.t = t;
-        best.point = ray.origin + ray.dir * t;
-        best.normal = denom < 0.0f ? p.normal : -p.normal;
-        best.reflectivity = p.reflectivity;
-        best.radius = 0.0f;
-
-        if (p.checker) {
-            float u = 0.f, v = 0.f;   // position on the plane's tangent axes
-            float du = 0.f, dv = 0.f; // ray direction on the same axes
-            if (std::abs(p.normal.y) > 0.9f) {
-                u = best.point.x;
-                v = best.point.z;
-                du = ray.dir.x;
-                dv = ray.dir.z;
-            } else if (std::abs(p.normal.x) > 0.9f) {
-                u = best.point.z;
-                v = best.point.y;
-                du = ray.dir.z;
-                dv = ray.dir.y;
-            } else {
-                u = best.point.x;
-                v = best.point.y;
-                du = ray.dir.x;
-                dv = ray.dir.y;
-            }
-            // Pixel footprint on the plane: an ellipse stretched by 1/cos along the
-            // ray's projected direction. Take its axis-aligned extents and box-filter
-            // the checker over them so distant / grazing / reflected tiles fade to
-            // their average colour instead of aliasing.
-            const float w = ray.footprint0 + ray.spread * t;
-            const float minor = w;
-            const float major = w / std::max(0.05f, std::fabs(denom));
-            const float len = std::sqrt(du * du + dv * dv);
-            const float mu = len > 1e-6f ? du / len : 1.0f;
-            const float mv = len > 1e-6f ? dv / len : 0.0f;
-            const float wu = std::sqrt(major * major * mu * mu + minor * minor * mv * mv);
-            const float wv = std::sqrt(major * major * mv * mv + minor * minor * mu * mu);
-            const float sU = filteredSquare(u * p.scale, wu * p.scale);
-            const float sV = filteredSquare(v * p.scale, wv * p.scale);
-            const float fracA = 0.5f - 0.5f * sU * sV; // 1 = fully colorA
-            best.color = p.colorB + (p.colorA - p.colorB) * fracA;
-        } else {
-            best.color = p.colorA;
+        float t = (p.point - ray.origin).dot(p.normal) / denom;
+        if (t > 1e-4f && t < maxT) {
+            return true;
         }
-        best.hit = true;
     }
-
-    return best;
+    return false;
 }
 
 Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
@@ -188,38 +236,37 @@ Vec3 CpuRaytracer::shade(const Ray& ray, const Scene& scene, int depth) const {
 
     Vec3 toLight = (scene.lightPos - h.point).normalized();
     float ndotl = std::max(0.0f, h.normal.dot(toLight));
-
-    // Soft shadow: up to 8 disk samples (scene.shadowSamples)
-    float shadowFactor = 0.0f;
-    const Vec3 offsets[8] = {
-        Vec3(0.35f, 0.0f, 0.15f), Vec3(-0.25f, 0.1f, -0.30f),
-        Vec3(0.10f, 0.0f, -0.35f), Vec3(-0.15f, 0.05f, 0.40f),
-        Vec3(0.40f, 0.05f, -0.10f), Vec3(-0.40f, 0.0f, 0.20f),
-        Vec3(0.05f, 0.1f, 0.45f), Vec3(-0.05f, 0.0f, -0.45f),
-    };
-    const float lightRadius = 0.55f;
-    int samples = std::max(1, std::min(8, scene.shadowSamples));
-    for (int i = 0; i < samples; ++i) {
-        Vec3 lp = scene.lightPos + offsets[i] * lightRadius;
-        Vec3 toL = lp - h.point;
-        float dist = toL.length();
-        toL = toL * (1.0f / std::max(dist, 1e-4f));
-        Ray shadow;
-        shadow.origin = h.point + h.normal * 1e-3f;
-        shadow.dir = toL;
-        Hit sh = intersect(shadow, scene);
-        if (!(sh.hit && sh.t < dist)) {
-            shadowFactor += 1.0f;
-        }
-    }
-    shadowFactor = 0.22f + 0.78f * (shadowFactor / static_cast<float>(samples));
-
-    col += h.color * scene.lightColor * ndotl * shadowFactor;
-
     Vec3 viewDir = -ray.dir;
     Vec3 halfV = (toLight + viewDir).normalized();
     float spec = std::pow(std::max(0.0f, h.normal.dot(halfV)), 32.0f);
-    col += scene.lightColor * (spec * 0.4f * shadowFactor);
+
+    if (ndotl > 0.0f || spec > 1e-4f) {
+        // Soft shadow: any-hit occlusion, up to 8 disk samples
+        float shadowFactor = 0.0f;
+        const Vec3 offsets[8] = {
+            Vec3(0.35f, 0.0f, 0.15f), Vec3(-0.25f, 0.1f, -0.30f),
+            Vec3(0.10f, 0.0f, -0.35f), Vec3(-0.15f, 0.05f, 0.40f),
+            Vec3(0.40f, 0.05f, -0.10f), Vec3(-0.40f, 0.0f, 0.20f),
+            Vec3(0.05f, 0.1f, 0.45f), Vec3(-0.05f, 0.0f, -0.45f),
+        };
+        const float lightRadius = 0.55f;
+        int samples = std::max(1, std::min(8, scene.shadowSamples));
+        for (int i = 0; i < samples; ++i) {
+            Vec3 lp = scene.lightPos + offsets[i] * lightRadius;
+            Vec3 toL = lp - h.point;
+            float dist = toL.length();
+            toL = toL * (1.0f / std::max(dist, 1e-4f));
+            Ray shadow;
+            shadow.origin = h.point + h.normal * 1e-3f;
+            shadow.dir = toL;
+            if (!occluded(shadow, scene, dist - 1e-3f)) {
+                shadowFactor += 1.0f;
+            }
+        }
+        shadowFactor = 0.22f + 0.78f * (shadowFactor / static_cast<float>(samples));
+        col += h.color * scene.lightColor * ndotl * shadowFactor;
+        col += scene.lightColor * (spec * 0.4f * shadowFactor);
+    }
 
     if (h.reflectivity > 0.01f && depth < scene.maxBounces) {
         Ray refl;

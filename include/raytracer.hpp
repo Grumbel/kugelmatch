@@ -23,6 +23,7 @@ private:
     std::atomic<int> nextRow_{0};
 
     Hit intersect(const Ray& ray, const Scene& scene) const;
+    bool occluded(const Ray& ray, const Scene& scene, float maxT) const;
     Vec3 shade(const Ray& ray, const Scene& scene, int depth) const;
     void renderRow(const Scene& scene, const Camera& cam, uint32_t* fb,
                    int y, int width, int height);
