@@ -31,6 +31,8 @@ sed -e "s/@VERSION_NAME@/$GAME_VERSION/" -e "s/@VERSION_CODE@/$VERSION_CODE/" \
 # The game: its sources and headers next to the module's Android.mk.
 cp "$GAME_SRC_DIR"/src/*.cpp src/jni/src/
 cp -r "$GAME_SRC_DIR"/include src/jni/src/include
+# Nix store copies are read-only; make the tree writable before generating headers.
+chmod -R u+rwX src/jni/src
 mkdir -p src/jni/src/include
 printf '%s\n' '#pragma once' "#define KUGELMATCH_VERSION_STRING \"$GAME_VERSION\"" \
   > src/jni/src/include/version.hpp
