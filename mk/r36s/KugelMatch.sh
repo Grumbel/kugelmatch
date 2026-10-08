@@ -32,5 +32,5 @@ export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 # gptokeyb: Select+Start quits.
 $GPTOKEYB "kugelmatch" &
 pm_platform_helper "$GAMEDIR/kugelmatch"
-./kugelmatch --gpu --fullscreen --scale auto --bounces 1 --shadows 1
+./kugelmatch --gpu --fullscreen --scale auto --fps 30 --no-vsync --bounces 1 --shadows 1
 pm_finish

@@ -92,7 +92,7 @@ private:
     float cpuScale_ = 1.0f;
     bool autoScale_ = false;
     float autoScaleCooldown_ = 0.0f;  // seconds until next scale step
-    static constexpr float kAutoScaleTargetFps = 60.0f;
+    static constexpr float kAutoScaleDefaultTargetFps = 60.0f;
     static constexpr float kAutoScaleMin = 0.0625f;
     static constexpr float kAutoScaleMax = 1.0f;
     static constexpr float kAutoScaleInterval = 0.35f; // settle between steps

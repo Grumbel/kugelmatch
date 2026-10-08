@@ -1997,8 +1997,12 @@ void Game::updateAutoScale(float dt) {
     if (autoScaleCooldown_ > 0.0f || fpsSmooth_ < 1.0f) {
         return;
     }
-    const float lo = kAutoScaleTargetFps * 0.90f;  // step down below ~54
-    const float hi = kAutoScaleTargetFps * 1.15f;  // step up above ~69
+    // Honour --fps when set; otherwise aim for 60.
+    const float target = (targetFps_ > 0)
+        ? static_cast<float>(targetFps_)
+        : kAutoScaleDefaultTargetFps;
+    const float lo = target * 0.90f;
+    const float hi = target * 1.15f;
     float next = cpuScale_;
     if (fpsSmooth_ < lo) {
         if (cpuScale_ > 0.5f + 1e-6f) {
