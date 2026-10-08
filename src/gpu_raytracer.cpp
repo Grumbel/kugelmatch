@@ -119,6 +119,7 @@ using PFNGLGETATTRIBLOCATIONPROC = GLint (*)(GLuint, const GLchar*);
 using PFNGLUNIFORM1IPROC = void (*)(GLint, GLint);
 using PFNGLUNIFORM1FPROC = void (*)(GLint, GLfloat);
 using PFNGLUNIFORM2FPROC = void (*)(GLint, GLfloat, GLfloat);
+using PFNGLFINISHPROC = void (*)();
 using PFNGLUNIFORM3FPROC = void (*)(GLint, GLfloat, GLfloat, GLfloat);
 using PFNGLUNIFORM1IVPROC = void (*)(GLint, GLsizei, const GLint*);
 using PFNGLUNIFORM1FVPROC = void (*)(GLint, GLsizei, const GLfloat*);
@@ -166,6 +167,7 @@ PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation_ = nullptr;
 PFNGLUNIFORM1IPROC glUniform1i_ = nullptr;
 PFNGLUNIFORM1FPROC glUniform1f_ = nullptr;
 PFNGLUNIFORM2FPROC glUniform2f_ = nullptr;
+PFNGLFINISHPROC glFinish_ = nullptr;
 PFNGLUNIFORM3FPROC glUniform3f_ = nullptr;
 PFNGLUNIFORM1IVPROC glUniform1iv_ = nullptr;
 PFNGLUNIFORM1FVPROC glUniform1fv_ = nullptr;
@@ -225,6 +227,7 @@ bool loadAllProcs() {
     ok &= loadProc(glUniform1i_, "glUniform1i");
     ok &= loadProc(glUniform1f_, "glUniform1f");
     ok &= loadProc(glUniform2f_, "glUniform2f");
+    loadProc(glFinish_, "glFinish"); // optional, used for auto-scale timing
     ok &= loadProc(glUniform3f_, "glUniform3f");
     ok &= loadProc(glUniform1iv_, "glUniform1iv");
     ok &= loadProc(glUniform1fv_, "glUniform1fv");
@@ -767,6 +770,13 @@ void GpuRaytracer::present() {
         return;
     }
     SDL_GL_SwapWindow(window_);
+}
+
+void GpuRaytracer::finish() {
+    if (!ready_ || !glFinish_) {
+        return;
+    }
+    glFinish_();
 }
 
 bool GpuRaytracer::readPixels(std::vector<uint32_t>& argb, int& w, int& h) const {

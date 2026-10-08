@@ -661,10 +661,10 @@ void Game::applyCliOverrides(const AppConfig& cfg, unsigned mask) {
     if (mask & CpuScale) {
         if (cfg.cpuScale < 0.0f) {
             autoScale_ = true;
-            // Start mid-low so weak GPUs climb or drop from a safe point.
-            if (cpuScale_ > 1.0f) {
-                cpuScale_ = 0.5f;
-            }
+            // Start low: a weak GPU at scale 1 reports multi-kHz CPU "FPS"
+            // until the first glFinish, so prefer climbing from 0.25.
+            cpuScale_ = 0.25f;
+            autoScaleCooldown_ = 1.0f; // let FPS settle before the first step
         } else {
             autoScale_ = false;
             cpuScale_ = cfg.cpuScale;
@@ -2225,8 +2225,13 @@ void Game::frame() {
             dt = dev_.fixedDt;
         }
         if (dt > 1e-6f) {
+            // Cap the instantaneous sample: a single sub-ms CPU frame after a
+            // long GPU stall must not pull the smoother into the tens of kHz.
             float inst = 1.0f / dt;
-            fpsSmooth_ = fpsSmooth_ > 1.0f ? (fpsSmooth_ * 0.9f + inst * 0.1f) : inst;
+            if (inst > 240.0f) {
+                inst = 240.0f;
+            }
+            fpsSmooth_ = fpsSmooth_ > 1.0f ? (fpsSmooth_ * 0.85f + inst * 0.15f) : inst;
         }
         updateAutoScale(dt);
 
@@ -2249,6 +2254,11 @@ void Game::frame() {
             gpuRt_.render(scene_, camera_);
             handleScreenshots();
             gpuRt_.present();
+            // Swap returns as soon as the driver queues the frame. Without a GPU
+            // sync, auto-scale sees multi-kHz "FPS" while the screen is ~3 Hz.
+            if (autoScale_) {
+                gpuRt_.finish();
+            }
         } else {
             // Render at last settled window size (not live drag size)
             int winW = appliedWinW_ > 0 ? appliedWinW_ : 1;

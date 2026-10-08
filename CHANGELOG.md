@@ -8,6 +8,8 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 ## Unreleased (1.2.14-dev)
 
 ### Rendering
+- `--scale auto` uses `glFinish` so FPS tracks the GPU (not the CPU queue);
+  starts at scale 0.25 and steps every ~0.75s
 - `--scale auto`: adapt render resolution to target ~60 fps (discrete steps;
   GPU FBO stays drawable-sized so only the viewport changes)
 
