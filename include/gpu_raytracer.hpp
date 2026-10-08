@@ -11,9 +11,10 @@
 #include <vector>
 
 // OpenGL ES 2.0 fragment-shader raytracer. Full analytic RT — no scene meshes.
-// Optional render scale via FBO (undersample / supersample), then a textured
-// fullscreen triangle blit to the window drawable (GLES2 has no glBlitFramebuffer).
-// Scale is shared with the CPU path quality presets.
+// Optional render scale via an FBO sized to the raytrace resolution (under- or
+// supersample), then a textured fullscreen triangle blit to the window drawable
+// (GLES2 has no glBlitFramebuffer). Scale is shared with the CPU path quality
+// presets.
 class GpuRaytracer {
 public:
     static constexpr int DEFAULT_WIDTH = 960;

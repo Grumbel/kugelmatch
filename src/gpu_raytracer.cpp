@@ -516,11 +516,13 @@ void GpuRaytracer::recomputeRtSize() {
     }
     int w = static_cast<int>(drawableW_ * s + 0.5f);
     int h = static_cast<int>(drawableH_ * s + 0.5f);
-    if (maxW_ > 0 && w > maxW_) {
-        w = maxW_;
-    }
-    if (maxH_ > 0 && h > maxH_) {
-        h = maxH_;
+    // Uniform fit into the max box so aspect ratio is preserved.
+    if ((maxW_ > 0 && w > maxW_) || (maxH_ > 0 && h > maxH_)) {
+        float sx = (maxW_ > 0 && w > maxW_) ? static_cast<float>(maxW_) / static_cast<float>(w) : 1.0f;
+        float sy = (maxH_ > 0 && h > maxH_) ? static_cast<float>(maxH_) / static_cast<float>(h) : 1.0f;
+        const float sm = sx < sy ? sx : sy;
+        w = std::max(1, static_cast<int>(w * sm + 0.5f));
+        h = std::max(1, static_cast<int>(h * sm + 0.5f));
     }
     rtW_ = std::max(1, w);
     rtH_ = std::max(1, h);
@@ -783,21 +785,23 @@ void GpuRaytracer::render(const Scene& scene, const Camera& cam) {
         recomputeRtSize();
     }
 
+    // FBO matches the raytrace resolution (rtW×rtH). Viewport is always the
+    // full FBO; a textured blit scales to the drawable. The old "drawable-sized
+    // FBO + partial viewport" path broke whenever rt > drawable (scale > 1 or
+    // supersample) because glViewport larger than the attachment is invalid.
     if (useFbo_) {
-        // Drawable-sized FBO: auto-scale only changes the viewport, not the texture.
-        if (!ensureFbo(drawableW_, drawableH_)) {
+        if (!ensureFbo(rtW_, rtH_)) {
+            // Fall back to direct drawable render for this frame.
             useFbo_ = false;
-            rtW_ = drawableW_;
-            rtH_ = drawableH_;
             glBindFramebuffer_(GL_FRAMEBUFFER, 0);
-            glViewport_(0, 0, rtW_, rtH_);
+            glViewport_(0, 0, drawableW_, drawableH_);
         } else {
             glBindFramebuffer_(GL_FRAMEBUFFER, fbo_);
-            glViewport_(0, 0, rtW_, rtH_);
+            glViewport_(0, 0, fboW_, fboH_);
         }
     } else {
         glBindFramebuffer_(GL_FRAMEBUFFER, 0);
-        glViewport_(0, 0, rtW_, rtH_);
+        glViewport_(0, 0, drawableW_, drawableH_);
     }
 
     glClearColor_(0.f, 0.f, 0.f, 1.f);
@@ -816,10 +820,9 @@ void GpuRaytracer::render(const Scene& scene, const Camera& cam) {
         if (uTexLoc_ >= 0) {
             glUniform1i_(uTexLoc_, 0);
         }
+        // FBO is exactly the raytraced image — sample the full texture.
         if (uUvScaleLoc_ >= 0 && glUniform2f_) {
-            const float ux = fboW_ > 0 ? static_cast<float>(rtW_) / static_cast<float>(fboW_) : 1.f;
-            const float uy = fboH_ > 0 ? static_cast<float>(rtH_) / static_cast<float>(fboH_) : 1.f;
-            glUniform2f_(uUvScaleLoc_, ux, uy);
+            glUniform2f_(uUvScaleLoc_, 1.f, 1.f);
         }
         glActiveTexture_(GL_TEXTURE0);
         glBindTexture_(GL_TEXTURE_2D, fboTex_);
