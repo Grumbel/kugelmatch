@@ -56,7 +56,7 @@ bool Game::initWindowAndBackend() {
             dev_.windowW > 0 ? dev_.windowW : GpuRaytracer::DEFAULT_WIDTH,
             dev_.windowH > 0 ? dev_.windowH : GpuRaytracer::DEFAULT_HEIGHT,
             winFlags);
-                if (!window_) {
+        if (!window_) {
             std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
             return false;
         }
@@ -77,7 +77,6 @@ bool Game::initWindowAndBackend() {
     }
 
     if (backend_ == RenderBackend::Gpu) {
- {
         if (!gpuRt_.init(window_)) {
             std::fprintf(stderr, "GPU raytracer init failed.\n");
             return false;
@@ -102,24 +101,6 @@ bool Game::initWindowAndBackend() {
         }
     }
     return true;
-}
-
-void Game::shutdownBackend() {
-    if (backend_ == RenderBackend::Gpu) {
-        gpuRt_.shutdown();
-    } else {
-        if (texture_) {
-            SDL_DestroyTexture(texture_);
-            texture_ = nullptr;
-        }
-        if (sdlRenderer_) {
-            SDL_DestroyRenderer(sdlRenderer_);
-            sdlRenderer_ = nullptr;
-        }
-        delete[] framebuffer_;
-        framebuffer_ = nullptr;
-        fbW_ = fbH_ = 0;
-    }
 }
 
 bool Game::switchBackend(RenderBackend next) {
