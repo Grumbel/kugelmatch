@@ -305,7 +305,6 @@ const float kFullscreenTri[6] = {
 
 } // namespace
 
-GpuRaytracer::GpuRaytracer() = default;
 
 void GpuRaytracer::shutdown() {
     if (glctx_) {
