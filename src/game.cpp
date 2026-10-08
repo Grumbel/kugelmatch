@@ -644,9 +644,18 @@ void Game::applyCliOverrides(const AppConfig& cfg, unsigned mask) {
         cpuMaxHeight_ = cfg.cpuMaxHeight;
     }
     if (mask & CpuScale) {
-        cpuScale_ = cfg.cpuScale;
-        if (cpuScale_ < 0.0625f) cpuScale_ = 0.0625f;
-        if (cpuScale_ > 2.0f) cpuScale_ = 2.0f;
+        if (cfg.cpuScale < 0.0f) {
+            autoScale_ = true;
+            // Start mid-low so weak GPUs climb or drop from a safe point.
+            if (cpuScale_ > 1.0f) {
+                cpuScale_ = 0.5f;
+            }
+        } else {
+            autoScale_ = false;
+            cpuScale_ = cfg.cpuScale;
+            if (cpuScale_ < 0.0625f) cpuScale_ = 0.0625f;
+            if (cpuScale_ > 2.0f) cpuScale_ = 2.0f;
+        }
         syncGpuScale();
     }
     if (mask & Volume) {
@@ -1965,6 +1974,54 @@ void Game::handleScreenshots() {
     }
 }
 
+void Game::updateAutoScale(float dt) {
+    if (!autoScale_) {
+        return;
+    }
+    autoScaleCooldown_ -= dt;
+    if (autoScaleCooldown_ > 0.0f || fpsSmooth_ < 1.0f) {
+        return;
+    }
+    const float lo = kAutoScaleTargetFps * 0.90f;  // step down below ~54
+    const float hi = kAutoScaleTargetFps * 1.15f;  // step up above ~69
+    float next = cpuScale_;
+    if (fpsSmooth_ < lo) {
+        if (cpuScale_ > 0.5f + 1e-6f) {
+            next = 0.5f;
+        } else if (cpuScale_ > 0.25f + 1e-6f) {
+            next = 0.25f;
+        } else if (cpuScale_ > 0.125f + 1e-6f) {
+            next = 0.125f;
+        } else {
+            next = kAutoScaleMin;
+        }
+    } else if (fpsSmooth_ > hi) {
+        if (cpuScale_ < 0.125f - 1e-6f) {
+            next = 0.125f;
+        } else if (cpuScale_ < 0.25f - 1e-6f) {
+            next = 0.25f;
+        } else if (cpuScale_ < 0.5f - 1e-6f) {
+            next = 0.5f;
+        } else if (cpuScale_ < kAutoScaleMax - 1e-6f) {
+            next = kAutoScaleMax;
+        }
+    } else {
+        autoScaleCooldown_ = kAutoScaleInterval * 0.5f;
+        return;
+    }
+    if (std::fabs(next - cpuScale_) < 1e-6f) {
+        autoScaleCooldown_ = kAutoScaleInterval;
+        return;
+    }
+    cpuScale_ = next;
+    syncGpuScale();
+    if (backend_ == RenderBackend::Cpu && appliedWinW_ > 0) {
+        ensureCpuFramebuffer(appliedWinW_, appliedWinH_);
+    }
+    autoScaleCooldown_ = kAutoScaleInterval;
+    std::fprintf(stderr, "auto-scale → %.4f (%.0f fps)\n", cpuScale_, fpsSmooth_);
+}
+
 void Game::run() {
     if (dev_.autoStart && state_ == GameState::Attract) {
         startMatch();
@@ -2156,6 +2213,7 @@ void Game::frame() {
             float inst = 1.0f / dt;
             fpsSmooth_ = fpsSmooth_ > 1.0f ? (fpsSmooth_ * 0.9f + inst * 0.1f) : inst;
         }
+        updateAutoScale(dt);
 
         flushPendingResize(dt);
 

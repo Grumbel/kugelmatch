@@ -118,6 +118,7 @@ using PFNGLGETUNIFORMLOCATIONPROC = GLint (*)(GLuint, const GLchar*);
 using PFNGLGETATTRIBLOCATIONPROC = GLint (*)(GLuint, const GLchar*);
 using PFNGLUNIFORM1IPROC = void (*)(GLint, GLint);
 using PFNGLUNIFORM1FPROC = void (*)(GLint, GLfloat);
+using PFNGLUNIFORM2FPROC = void (*)(GLint, GLfloat, GLfloat);
 using PFNGLUNIFORM3FPROC = void (*)(GLint, GLfloat, GLfloat, GLfloat);
 using PFNGLUNIFORM1IVPROC = void (*)(GLint, GLsizei, const GLint*);
 using PFNGLUNIFORM1FVPROC = void (*)(GLint, GLsizei, const GLfloat*);
@@ -164,6 +165,7 @@ PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation_ = nullptr;
 PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation_ = nullptr;
 PFNGLUNIFORM1IPROC glUniform1i_ = nullptr;
 PFNGLUNIFORM1FPROC glUniform1f_ = nullptr;
+PFNGLUNIFORM2FPROC glUniform2f_ = nullptr;
 PFNGLUNIFORM3FPROC glUniform3f_ = nullptr;
 PFNGLUNIFORM1IVPROC glUniform1iv_ = nullptr;
 PFNGLUNIFORM1FVPROC glUniform1fv_ = nullptr;
@@ -222,6 +224,7 @@ bool loadAllProcs() {
     ok &= loadProc(glGetAttribLocation_, "glGetAttribLocation");
     ok &= loadProc(glUniform1i_, "glUniform1i");
     ok &= loadProc(glUniform1f_, "glUniform1f");
+    ok &= loadProc(glUniform2f_, "glUniform2f");
     ok &= loadProc(glUniform3f_, "glUniform3f");
     ok &= loadProc(glUniform1iv_, "glUniform1iv");
     ok &= loadProc(glUniform1fv_, "glUniform1fv");
@@ -277,9 +280,11 @@ void main() {
 const char* kEmbeddedBlitVert = R"GLSL(
 #version 100
 attribute vec2 a_pos;
+uniform vec2 u_uvScale;
 varying vec2 v_uv;
 void main() {
-    v_uv = a_pos * 0.5 + 0.5;
+    vec2 base = a_pos * 0.5 + 0.5;
+    v_uv = base * u_uvScale;
     gl_Position = vec4(a_pos, 0.0, 1.0);
 }
 )GLSL";
@@ -428,6 +433,7 @@ bool GpuRaytracer::loadShaders() {
     aPosLoc_ = glGetAttribLocation_(program_, "a_pos");
     aPosBlitLoc_ = glGetAttribLocation_(blitProgram_, "a_pos");
     uTexLoc_ = glGetUniformLocation_(blitProgram_, "u_tex");
+    uUvScaleLoc_ = glGetUniformLocation_(blitProgram_, "u_uvScale");
     if (aPosLoc_ < 0 || aPosBlitLoc_ < 0) {
         std::fprintf(stderr, "Missing a_pos attribute in GLES2 shaders\n");
         return false;
@@ -712,7 +718,8 @@ void GpuRaytracer::render(const Scene& scene, const Camera& cam) {
     }
 
     if (useFbo_) {
-        if (!ensureFbo(rtW_, rtH_)) {
+        // Drawable-sized FBO: auto-scale only changes the viewport, not the texture.
+        if (!ensureFbo(drawableW_, drawableH_)) {
             useFbo_ = false;
             rtW_ = drawableW_;
             rtH_ = drawableH_;
@@ -742,6 +749,11 @@ void GpuRaytracer::render(const Scene& scene, const Camera& cam) {
         glUseProgram_(blitProgram_);
         if (uTexLoc_ >= 0) {
             glUniform1i_(uTexLoc_, 0);
+        }
+        if (uUvScaleLoc_ >= 0 && glUniform2f_) {
+            const float ux = fboW_ > 0 ? static_cast<float>(rtW_) / static_cast<float>(fboW_) : 1.f;
+            const float uy = fboH_ > 0 ? static_cast<float>(rtH_) / static_cast<float>(fboH_) : 1.f;
+            glUniform2f_(uUvScaleLoc_, ux, uy);
         }
         glActiveTexture_(GL_TEXTURE0);
         glBindTexture_(GL_TEXTURE_2D, fboTex_);

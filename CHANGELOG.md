@@ -7,6 +7,10 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 ## Unreleased (1.2.14-dev)
 
+### Rendering
+- `--scale auto`: adapt render resolution to target ~60 fps (discrete steps;
+  GPU FBO stays drawable-sized so only the viewport changes)
+
 ### Platforms
 - R36S launcher defaults: `--scale 0.25 --bounces 1 --shadows 1` (handheld-friendly)
 - Render scale minimum lowered from 0.25 to **0.0625**

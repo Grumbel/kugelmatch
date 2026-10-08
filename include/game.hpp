@@ -68,6 +68,7 @@ public:
     void run();
     /** One simulation + render tick (also the Emscripten main-loop body). */
     void frame();
+    void updateAutoScale(float dt);
     void shutdown();
 
 private:
@@ -89,6 +90,12 @@ private:
     int cpuMaxWidth_ = 1280;
     int cpuMaxHeight_ = 720;
     float cpuScale_ = 1.0f;
+    bool autoScale_ = false;
+    float autoScaleCooldown_ = 0.0f;  // seconds until next scale step
+    static constexpr float kAutoScaleTargetFps = 60.0f;
+    static constexpr float kAutoScaleMin = 0.0625f;
+    static constexpr float kAutoScaleMax = 1.0f;
+    static constexpr float kAutoScaleInterval = 0.35f; // settle between steps
     bool replayTowardPlayer_ = false; // ball exited near player end
 
     SDL_Window* window_ = nullptr;

@@ -55,6 +55,7 @@ private:
     int aPosLoc_ = -1;
     int aPosBlitLoc_ = -1;
     int uTexLoc_ = -1;
+    int uUvScaleLoc_ = -1;
 
     // FBO for scaled raytrace target (0 when rendering directly to default FB)
     unsigned fbo_ = 0;
