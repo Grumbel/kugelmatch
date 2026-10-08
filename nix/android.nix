@@ -73,7 +73,7 @@ let
   # The sources the APK is built from: no build directories, no .git.
   gameSrc = pkgs.lib.fileset.toSource {
     root = ../.;
-    fileset = pkgs.lib.fileset.unions [ ../src ../include ];
+    fileset = pkgs.lib.fileset.unions [ ../src ../include ../shaders ];
   };
 
   apkName = "kugelmatch-${version}.apk";
