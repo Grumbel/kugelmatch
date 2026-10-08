@@ -163,11 +163,16 @@ bool Game::ensureCpuFramebuffer(int w, int h) {
     // Optional supersample / undersample before max clamp
     w = static_cast<int>(w * cpuScale_ + 0.5f);
     h = static_cast<int>(h * cpuScale_ + 0.5f);
-    if (cpuMaxWidth_ > 0 && w > cpuMaxWidth_) {
-        w = cpuMaxWidth_;
-    }
-    if (cpuMaxHeight_ > 0 && h > cpuMaxHeight_) {
-        h = cpuMaxHeight_;
+    // Uniform fit into the max box so aspect ratio is preserved.
+    if ((cpuMaxWidth_ > 0 && w > cpuMaxWidth_) ||
+        (cpuMaxHeight_ > 0 && h > cpuMaxHeight_)) {
+        float sx = (cpuMaxWidth_ > 0 && w > cpuMaxWidth_)
+            ? static_cast<float>(cpuMaxWidth_) / static_cast<float>(w) : 1.0f;
+        float sy = (cpuMaxHeight_ > 0 && h > cpuMaxHeight_)
+            ? static_cast<float>(cpuMaxHeight_) / static_cast<float>(h) : 1.0f;
+        const float sm = sx < sy ? sx : sy;
+        w = static_cast<int>(w * sm + 0.5f);
+        h = static_cast<int>(h * sm + 0.5f);
     }
     w = std::max(1, w);
     h = std::max(1, h);
