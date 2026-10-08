@@ -28,8 +28,7 @@ void printHelp(const char* argv0) {
         "  --vsync            Enable vsync\n"
         "  --no-vsync         Disable vsync\n"
         "  --fps N            Target FPS when vsync is off (0 = uncapped, default from config)\n"
-        "  --scale F|auto     Render scale 0.0625–2.0, or auto (target ~60 fps)
-"
+        "  --scale F|auto     Render scale 0.0625-2.0, or auto (target ~60 fps)\n"
         "  --max-width N      Clamp render width (0 = unlimited)\n"
         "  --max-height N     Clamp render height (0 = unlimited)\n"
         "  --quality NAME     low | medium | high | ultra  (sets bounces, shadows, scale)\n"

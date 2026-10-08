@@ -74,7 +74,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${KUGELMATCH_RELEASE_FLAGS}" CACHE STRING "" FORCE)
 
 find_package(Threads REQUIRED)
 
-# --- SDL2 (native pkg-config, Emscripten port, or cross-provided paths) ---
+# --- SDL2 (CONFIG package, pkg-config, Emscripten, or explicit paths) ---
 if(EMSCRIPTEN)
   if(SDL2_ROOT)
     if(NOT EXISTS "${SDL2_ROOT}/lib/libSDL2.a" OR NOT EXISTS "${SDL2_ROOT}/include/SDL2/SDL.h")
@@ -89,8 +89,21 @@ if(EMSCRIPTEN)
     set(SDL2_LIBRARIES "")
   endif()
 elseif(NOT SDL2_LIBRARIES)
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(SDL2 REQUIRED sdl2)
+  # MinGW cross builds pass -DSDL2_DIR=... (official SDL2 CMake package).
+  find_package(SDL2 QUIET CONFIG)
+  if(SDL2_FOUND)
+    # SDL2::SDL2 / SDL2::SDL2main from the CONFIG package.
+    set(SDL2_LIBRARIES "")
+    if(TARGET SDL2::SDL2main)
+      list(APPEND SDL2_LIBRARIES SDL2::SDL2main)
+    endif()
+    list(APPEND SDL2_LIBRARIES SDL2::SDL2)
+    set(SDL2_INCLUDE_DIRS "")
+    message(STATUS "SDL2 via CMake CONFIG (${SDL2_DIR})")
+  else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SDL2 REQUIRED sdl2)
+  endif()
 endif()
 
 # GPU path is OpenGL ES 2.0 (SDL_GL_GetProcAddress). Skip desktop GL on GLES targets.
