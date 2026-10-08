@@ -312,6 +312,29 @@ void main() {
 }
 )GLSL";
 
+
+const char* kEmbeddedBlitVertGL = R"GLSL(
+#version 330 core
+layout(location = 0) in vec2 a_pos;
+uniform vec2 u_uvScale;
+out vec2 v_uv;
+void main() {
+    vec2 base = a_pos * 0.5 + 0.5;
+    v_uv = base * u_uvScale;
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+)GLSL";
+
+const char* kEmbeddedBlitFragGL = R"GLSL(
+#version 330 core
+in vec2 v_uv;
+uniform sampler2D u_tex;
+out vec4 fragColor;
+void main() {
+    fragColor = texture(u_tex, v_uv);
+}
+)GLSL";
+
 #include "embedded_frag.inc"
 
 // Cover NDC with a single oversized triangle: (-1,-1), (3,-1), (-1,3).
