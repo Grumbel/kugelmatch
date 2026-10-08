@@ -98,19 +98,29 @@ void addWord(Scene& scene, const char* word, float originX, float originY,
     if (!word) {
         return;
     }
+    // Merge consecutive set pixels in each row into one box (same look, far fewer
+    // AABBs for the GPU/CPU raytracers — title/banner text is the main cost).
     for (int ci = 0; word[ci]; ++ci) {
         const int* rows = rowsFor(word[ci]);
         float ox = originX + ci * (5 * cell + gap);
         for (int r = 0; r < 7; ++r) {
             int bits = rows[r];
-            for (int c = 0; c < 5; ++c) {
-                if (bits & (1 << (4 - c))) {
-                    float x0 = ox + c * cell;
-                    float y0 = originY + (6 - r) * cell;
-                    pushBox(scene, Vec3(x0, y0, originZ),
-                            Vec3(x0 + cell * 0.95f, y0 + cell * 0.95f, originZ + cell * 0.85f),
-                            color, reflectivity);
+            int c = 0;
+            while (c < 5) {
+                if ((bits & (1 << (4 - c))) == 0) {
+                    ++c;
+                    continue;
                 }
+                const int c0 = c;
+                while (c < 5 && (bits & (1 << (4 - c))) != 0) {
+                    ++c;
+                }
+                const float x0 = ox + c0 * cell;
+                const float x1 = ox + c * cell - cell * 0.05f;
+                const float y0 = originY + (6 - r) * cell;
+                pushBox(scene, Vec3(x0, y0, originZ),
+                        Vec3(x1, y0 + cell * 0.95f, originZ + cell * 0.85f),
+                        color, reflectivity);
             }
         }
     }
