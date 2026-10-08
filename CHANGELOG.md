@@ -8,6 +8,12 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 ## Unreleased (1.2.14-dev)
 
 ### Rendering
+- Glyph bitmap words merge horizontal pixel runs into fewer AABBs (same look,
+  less intersection work in attract/title/banners)
+- GPU uniform upload: fixed locations after link + reusable scratch buffers
+  (no per-frame string map or heap alloc)
+- Soft shadows skipped when neither diffuse nor specular would contribute
+- CPU raytracer: same any-hit shadows, plane-first, invDir-once as the GPU path
 - GPU raytracer: any-hit occlusion for soft shadows (skip closest-hit work on
   shadow rays), test planes before boxes so `best.t` prunes glyph geometry, and
   compute box `invDir` once per ray
