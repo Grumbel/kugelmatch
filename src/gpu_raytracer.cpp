@@ -280,6 +280,16 @@ void main() {
 }
 )GLSL";
 
+const char* kEmbeddedVertGL = R"GLSL(
+#version 330 core
+layout(location = 0) in vec2 a_pos;
+out vec2 v_uv;
+void main() {
+    v_uv = a_pos * 0.5 + 0.5;
+    gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+)GLSL";
+
 const char* kEmbeddedBlitVert = R"GLSL(
 #version 100
 attribute vec2 a_pos;
@@ -377,15 +387,16 @@ bool GpuRaytracer::linkProgram(unsigned& outProg, unsigned vs, unsigned fs, cons
 }
 
 bool GpuRaytracer::loadShaders() {
-    std::string vertSrc = readFile("shaders/raytrace.vert");
-    std::string fragSrc = readFile("shaders/raytrace.frag");
-    std::string blitVertSrc = readFile("shaders/blit.vert");
-    std::string blitFragSrc = readFile("shaders/blit.frag");
+#if defined(KUGELMATCH_USE_OPENGLES2) || defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+    std::string vertSrc = readFile("shaders/raytrace_es.vert");
+    std::string fragSrc = readFile("shaders/raytrace_es.frag");
+    std::string blitVertSrc = readFile("shaders/blit_es.vert");
+    std::string blitFragSrc = readFile("shaders/blit_es.frag");
     if (vertSrc.empty()) {
-        vertSrc = kEmbeddedVert;
+        vertSrc = kEmbeddedVert; // GLES2 fullscreen triangle
     }
     if (fragSrc.empty()) {
-        fragSrc = kEmbeddedFrag;
+        fragSrc = kEmbeddedFragES;
     }
     if (blitVertSrc.empty()) {
         blitVertSrc = kEmbeddedBlitVert;
@@ -393,6 +404,24 @@ bool GpuRaytracer::loadShaders() {
     if (blitFragSrc.empty()) {
         blitFragSrc = kEmbeddedBlitFrag;
     }
+#else
+    std::string vertSrc = readFile("shaders/raytrace.vert");
+    std::string fragSrc = readFile("shaders/raytrace.frag");
+    std::string blitVertSrc = readFile("shaders/blit.vert");
+    std::string blitFragSrc = readFile("shaders/blit.frag");
+    if (vertSrc.empty()) {
+        vertSrc = kEmbeddedVertGL;
+    }
+    if (fragSrc.empty()) {
+        fragSrc = kEmbeddedFrag;
+    }
+    if (blitVertSrc.empty()) {
+        blitVertSrc = kEmbeddedBlitVertGL;
+    }
+    if (blitFragSrc.empty()) {
+        blitFragSrc = kEmbeddedBlitFragGL;
+    }
+#endif
 
     GLuint vs = compileShader(GL_VERTEX_SHADER, vertSrc.c_str());
     GLuint fs = compileShader(GL_FRAGMENT_SHADER, fragSrc.c_str());
@@ -507,9 +536,15 @@ bool GpuRaytracer::init(SDL_Window* window) {
     window_ = window;
 
     // GLES2 everywhere for the GPU path (desktop Mesa, mobile, WebGL1).
+#if defined(KUGELMATCH_USE_OPENGLES2) || defined(__EMSCRIPTEN__) || defined(__ANDROID__)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+#else
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
     glctx_ = SDL_GL_CreateContext(window_);
@@ -542,7 +577,12 @@ bool GpuRaytracer::init(SDL_Window* window) {
     syncDrawableSize();
     recomputeRtSize();
     ready_ = true;
+    #if defined(KUGELMATCH_USE_OPENGLES2) || defined(__EMSCRIPTEN__) || defined(__ANDROID__)
     std::fprintf(stderr, "GPU backend: OpenGL ES 2.0 (fragment-shader raytracer)\n");
+#else
+    std::fprintf(stderr, "GPU backend: OpenGL 3.3 (fragment-shader raytracer)\n");
+#endif
+
     return true;
 }
 

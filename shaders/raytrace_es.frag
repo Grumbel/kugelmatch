@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
-#version 330 core
-// Full raytracer in a fragment shader. No scene meshes — pure analytic intersections.
-in vec2 v_uv;
-out vec4 fragColor;
+#version 100
+// GLES2 / WebGL1 raytracer. No scene meshes — pure analytic intersections.
+precision highp float;
+varying vec2 v_uv;
 
 #define MAX_SPHERES 16
-#define MAX_BOXES   512
+#define MAX_BOXES   128
 #define MAX_PLANES  12
 
 uniform vec3 u_camPos;
@@ -200,7 +200,7 @@ float softShadow(vec3 p, vec3 n) {
     offsets[6] = vec3( 0.05, 0.1,  0.45);
     offsets[7] = vec3(-0.05, 0.0, -0.45);
     float lightRadius = 0.55;
-    int samples = clamp(u_shadowSamples, 1, 8);
+    int samples = int(clamp(float(u_shadowSamples), 1.0, 8.0));
     for (int i = 0; i < 8; ++i) {
         if (i >= samples) break;
         vec3 lp = u_lightPos + offsets[i] * lightRadius;
@@ -242,7 +242,7 @@ vec3 trace(vec3 ro, vec3 rd) {
     float fw0 = 0.0;
     float fa = u_pixelAngle;
 
-    int maxB = clamp(u_maxBounces, 0, 3);
+    int maxB = int(clamp(float(u_maxBounces), 0.0, 3.0));
     for (int bounce = 0; bounce <= 3; ++bounce) {
         if (bounce > maxB) {
             break;
@@ -290,5 +290,5 @@ void main() {
     // Exposure + gamma
     col *= max(u_exposure, 0.1);
     col = sqrt(col);
-    fragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(col, 1.0);
 }

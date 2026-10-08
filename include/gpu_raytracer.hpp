@@ -22,7 +22,11 @@ public:
     // Must match shaders/raytrace.frag (128 boxes keeps uniform pressure
     // within practical GLES2 / WebGL1 limits for typical scenes).
     static constexpr int MAX_SPHERES = 16;
+#if defined(KUGELMATCH_USE_OPENGLES2)
     static constexpr int MAX_BOXES = 128;
+#else
+    static constexpr int MAX_BOXES = 512;
+#endif
     static constexpr int MAX_PLANES = 12;
 
     GpuRaytracer() = default;

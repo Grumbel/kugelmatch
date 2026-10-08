@@ -42,7 +42,7 @@
           cmakeFlags = [
             "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
             "-DKUGELMATCH_NATIVE=OFF"
-            "-DKUGELMATCH_OPENGLES2=ON"
+            "-DKUGELMATCH_OPENGLES2=OFF"
             "-DPROJECT_VERSION_FULL=${version}"
           ];
         };
@@ -89,6 +89,25 @@
           versionCode = self.revCount or 1;
         };
 
+
+        kugelmatch-gles2 = pkgs.stdenv.mkDerivation {
+          pname = "kugelmatch-gles2";
+          inherit version;
+          src = lib.cleanSource ./.;
+          nativeBuildInputs = [ pkgs.cmake pkgs.pkg-config ];
+          buildInputs = [ pkgs.SDL2 pkgs.libGL pkgs.libglvnd ];
+          cmakeFlags = [
+            "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+            "-DKUGELMATCH_NATIVE=ON"
+            "-DKUGELMATCH_OPENGLES2=ON"
+          ];
+          postInstall = ''
+            if [ -f "$out/bin/kugelmatch" ]; then
+              mv "$out/bin/kugelmatch" "$out/bin/kugelmatch-gles2"
+            fi
+          '';
+        };
+
         kugelmatch-configure = pkgs.writeShellScriptBin "kugelmatch-configure" ''
           set -euo pipefail
           ROOT="''${KUGELMATCH_SRC:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
@@ -98,7 +117,7 @@
           exec ${pkgs.cmake}/bin/cmake -S "$ROOT" -B "$BUILD" \
             -DCMAKE_BUILD_TYPE="$TYPE" \
             -DKUGELMATCH_NATIVE=ON \
-            -DKUGELMATCH_OPENGLES2=ON \
+            -DKUGELMATCH_OPENGLES2=OFF \
             "$@"
         '';
 
@@ -117,6 +136,7 @@
           default = kugelmatch;
           kugelmatch = kugelmatch;
           kugelmatch-gpu = kugelmatch;
+          kugelmatch-gles2 = kugelmatch-gles2;
           kugelmatch-win64 = windows.kugelmatch-win64;
           kugelmatch-win32 = windows.kugelmatch-win32;
           kugelmatch-win64-zip = windows.kugelmatch-win64-zip;

@@ -42,11 +42,16 @@ bool Game::initWindowAndBackend() {
     Uint32 winFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
     if (backend_ == RenderBackend::Gpu) {
         winFlags |= SDL_WINDOW_OPENGL;
-        // GLES2 context for the GPU raytracer (desktop Mesa, Android, R36S, WebGL1).
+        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#if defined(KUGELMATCH_USE_OPENGLES2) || defined(__EMSCRIPTEN__) || defined(__ANDROID__)
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#else
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+#endif
     }
 
     if (!window_) {
