@@ -669,10 +669,10 @@ void Game::applyCliOverrides(const AppConfig& cfg, unsigned mask) {
     if (mask & CpuScale) {
         if (cfg.cpuScale < 0.0f) {
             autoScale_ = true;
-            // Start low: a weak GPU at scale 1 reports multi-kHz CPU "FPS"
-            // until the first glFinish, so prefer climbing from 0.25.
+            // Start low and climb using render-busy FPS (not wall/vsync FPS).
             cpuScale_ = 0.25f;
-            autoScaleCooldown_ = 1.0f; // let FPS settle before the first step
+            renderFpsSmooth_ = 0.0f;
+            autoScaleCooldown_ = 0.75f; // let a few frames settle before the first step
         } else {
             autoScale_ = false;
             cpuScale_ = cfg.cpuScale;
@@ -2093,14 +2093,15 @@ void Game::updateAutoScale(float dt) {
         return;
     }
     autoScaleCooldown_ -= dt;
-    if (autoScaleCooldown_ > 0.0f || fpsSmooth_ < 1.0f) {
+    // Use render-busy FPS, not wall-clock (wall is capped by vsync / --fps delay).
+    if (autoScaleCooldown_ > 0.0f || renderFpsSmooth_ < 1.0f) {
         return;
     }
     // Honour --fps when set; otherwise aim for 60.
     const float target = (targetFps_ > 0)
         ? static_cast<float>(targetFps_)
         : kAutoScaleDefaultTargetFps;
-    const float ratio = fpsSmooth_ / target; // 1 = on target
+    const float ratio = renderFpsSmooth_ / target; // 1 = on target
     if (std::fabs(ratio - 1.0f) < kAutoScaleDeadZone) {
         // Close enough — hold so we do not oscillate around the set point.
         autoScaleCooldown_ = kAutoScaleInterval;
@@ -2111,7 +2112,7 @@ void Game::updateAutoScale(float dt) {
     //   scale_ideal / scale = sqrt(fps / target) = sqrt(ratio)
     float ideal = cpuScale_ * std::sqrt(std::max(0.05f, ratio));
     // Move only part-way toward ideal each tick (damping).
-    float next = cpuScale_ + (ideal - cpuScale_) * 0.45f;
+    float next = cpuScale_ + (ideal - cpuScale_) * 0.50f;
     // Cap relative step size so one noisy sample cannot jump too far.
     const float lo = cpuScale_ * (1.0f - kAutoScaleMaxStep);
     const float hi = cpuScale_ * (1.0f + kAutoScaleMaxStep);
@@ -2124,14 +2125,21 @@ void Game::updateAutoScale(float dt) {
         autoScaleCooldown_ = kAutoScaleInterval;
         return;
     }
+    const float oldScale = cpuScale_;
     cpuScale_ = next;
+    // Cost ∝ scale²: predict the new render FPS so the smoother does not keep
+    // pushing scale in the same direction on stale samples (ratchet).
+    if (oldScale > 1e-6f && renderFpsSmooth_ > 1.0f) {
+        const float costRatio = (oldScale * oldScale) / (cpuScale_ * cpuScale_);
+        renderFpsSmooth_ *= costRatio;
+    }
     syncGpuScale();
     if (backend_ == RenderBackend::Cpu && appliedWinW_ > 0) {
         ensureCpuFramebuffer(appliedWinW_, appliedWinH_);
     }
     autoScaleCooldown_ = kAutoScaleInterval;
-    std::fprintf(stderr, "auto-scale → %.4f (%.0f fps, target %.0f)\n",
-                 cpuScale_, fpsSmooth_, target);
+    std::fprintf(stderr, "auto-scale → %.4f (render %.0f fps, target %.0f)\n",
+                 cpuScale_, renderFpsSmooth_, target);
 }
 
 void Game::run() {
@@ -2335,7 +2343,6 @@ void Game::frame() {
             }
             fpsSmooth_ = fpsSmooth_ > 1.0f ? (fpsSmooth_ * 0.85f + inst * 0.15f) : inst;
         }
-        updateAutoScale(dt);
 
         flushPendingResize(dt);
 
@@ -2353,14 +2360,27 @@ void Game::frame() {
         if (!renderThisFrame) {
             // skip rendering
         } else if (backend_ == RenderBackend::Gpu) {
+            // Measure render-busy time (before vsync wait in present) so auto-scale
+            // can see headroom and climb scale back up under vsync.
+            const Uint64 rt0 = SDL_GetPerformanceCounter();
             gpuRt_.render(scene_, camera_);
+            // Finish before present: isolates GPU work from swap/vsync blocking.
+            gpuRt_.finish();
+            const Uint64 rt1 = SDL_GetPerformanceCounter();
+            const float renderDt = static_cast<float>(rt1 - rt0) / static_cast<float>(freq);
+            if (renderDt > 1e-6f) {
+                float inst = 1.0f / renderDt;
+                if (inst > 480.0f) {
+                    inst = 480.0f;
+                }
+                renderFpsSmooth_ = renderFpsSmooth_ > 1.0f
+                    ? (renderFpsSmooth_ * 0.80f + inst * 0.20f) : inst;
+            }
             handleScreenshots();
             gpuRt_.present();
-            // Swap often returns as soon as the driver queues the frame (broken
-            // or absent vsync on some GLES drivers). Always finish so the CPU
-            // does not free-spin ahead of the GPU — keeps dt/FPS honest and
-            // avoids burning a core while the Mali is still drawing.
-            gpuRt_.finish();
+            if (autoScale_) {
+                updateAutoScale(dt);
+            }
         } else {
             // Render at last settled window size (not live drag size)
             int winW = appliedWinW_ > 0 ? appliedWinW_ : 1;
@@ -2376,9 +2396,23 @@ void Game::frame() {
                 return;
             }
             // Framebuffer size may differ from window (cpuScale / max clamp)
+            const Uint64 rt0 = SDL_GetPerformanceCounter();
             cpuRt_.render(scene_, camera_, framebuffer_, fbW_, fbH_);
+            const Uint64 rt1 = SDL_GetPerformanceCounter();
+            const float renderDt = static_cast<float>(rt1 - rt0) / static_cast<float>(freq);
+            if (renderDt > 1e-6f) {
+                float inst = 1.0f / renderDt;
+                if (inst > 480.0f) {
+                    inst = 480.0f;
+                }
+                renderFpsSmooth_ = renderFpsSmooth_ > 1.0f
+                    ? (renderFpsSmooth_ * 0.80f + inst * 0.20f) : inst;
+            }
             handleScreenshots();
             presentCpu();
+            if (autoScale_) {
+                updateAutoScale(dt);
+            }
         }
         updateHud();
         ++frameIndex_;

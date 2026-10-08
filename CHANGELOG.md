@@ -8,6 +8,9 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 ## Unreleased (1.2.14-dev)
 
 ### Rendering
+- `--scale auto` uses render-busy FPS (finish before present), not wall-clock
+  FPS, so it can climb back up under vsync; adjusts the smoother by cost∝scale²
+  after each step to avoid ratchet
 - Glyph bitmap words merge horizontal pixel runs into fewer AABBs (same look,
   less intersection work in attract/title/banners)
 - GPU uniform upload: fixed locations after link + reusable scratch buffers

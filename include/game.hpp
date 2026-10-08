@@ -92,12 +92,15 @@ private:
     float cpuScale_ = 1.0f;
     bool autoScale_ = false;
     float autoScaleCooldown_ = 0.0f;  // seconds until next adjustment
+    // Render-busy FPS (excludes vsync / frame-cap waits). Auto-scale must use this
+    // rather than wall-clock fpsSmooth_, otherwise scale never climbs under vsync.
+    float renderFpsSmooth_ = 0.0f;
     static constexpr float kAutoScaleDefaultTargetFps = 60.0f;
     static constexpr float kAutoScaleMin = 0.0625f;
     static constexpr float kAutoScaleMax = 2.0f;
     static constexpr float kAutoScaleInterval = 0.40f; // settle before re-measure
-    static constexpr float kAutoScaleDeadZone = 0.06f; // |fps/target - 1| below this: hold
-    static constexpr float kAutoScaleMaxStep = 0.08f;  // max relative change per tick
+    static constexpr float kAutoScaleDeadZone = 0.08f; // |fps/target - 1| below this: hold
+    static constexpr float kAutoScaleMaxStep = 0.12f;  // max relative change per tick
     bool replayTowardPlayer_ = false; // ball exited near player end
 
     SDL_Window* window_ = nullptr;

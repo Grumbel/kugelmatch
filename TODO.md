@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** More RT opts (glyph RLE, fixed uniforms, CPU any-hit parity)
+**Tip:** Fix --scale auto climb (render-busy FPS, anti-ratchet)
 
 ## Done
 
@@ -48,4 +48,5 @@ Previous: `kugelmatch-046.2-embedded-blit-gl-a7bcc21.bundle`
 Previous: `kugelmatch-047.1-fbo-rt-viewport-a7bcc21.bundle`
 Previous: `kugelmatch-048.1-gl33-vao-a7bcc21.bundle`
 Previous: `kugelmatch-049.1-gpu-rt-opt-a7bcc21.bundle`
-This: `kugelmatch-050.1-rt-opt-cont-a7bcc21.bundle`
+Previous: `kugelmatch-050.1-rt-opt-cont-a7bcc21.bundle`
+This: `kugelmatch-051.1-autoscale-climb-a7bcc21.bundle`
