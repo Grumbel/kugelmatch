@@ -447,8 +447,8 @@ void GpuRaytracer::syncDrawableSize() {
 
 void GpuRaytracer::recomputeRtSize() {
     float s = renderScale_;
-    if (s < 0.25f) {
-        s = 0.25f;
+    if (s < 0.0625f) {
+        s = 0.0625f;
     }
     if (s > 2.0f) {
         s = 2.0f;
@@ -467,8 +467,8 @@ void GpuRaytracer::recomputeRtSize() {
 }
 
 void GpuRaytracer::setRenderScale(float scale) {
-    if (scale < 0.25f) {
-        scale = 0.25f;
+    if (scale < 0.0625f) {
+        scale = 0.0625f;
     }
     if (scale > 2.0f) {
         scale = 2.0f;

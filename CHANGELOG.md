@@ -8,6 +8,9 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 ## Unreleased (1.2.14-dev)
 
 ### Platforms
+- R36S launcher defaults: `--scale 0.25 --bounces 1 --shadows 1` (handheld-friendly)
+- Render scale minimum lowered from 0.25 to **0.0625**
+
 - Default renderer is **GPU (OpenGL ES 2.0)**; `--cpu` selects the software path
 - Multi-platform packaging (kurvenrausch-style): Windows MinGW zips, Emscripten WASM site,
   Android APK, R36S/ArkOS PortMaster tree (`nix/`, `mk/`)

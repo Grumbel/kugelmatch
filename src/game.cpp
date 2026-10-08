@@ -581,7 +581,7 @@ void Game::applyConfig(const AppConfig& cfg) {
     if (cfg.cpuScale > 0.0f) {
         cpuScale_ = cfg.cpuScale;
     }
-    if (cpuScale_ < 0.25f) cpuScale_ = 0.25f;
+    if (cpuScale_ < 0.0625f) cpuScale_ = 0.0625f;
     if (cpuScale_ > 2.0f) cpuScale_ = 2.0f;
     syncGpuScale();
     audio_.setMasterVolume(cfg.volume);
@@ -645,7 +645,7 @@ void Game::applyCliOverrides(const AppConfig& cfg, unsigned mask) {
     }
     if (mask & CpuScale) {
         cpuScale_ = cfg.cpuScale;
-        if (cpuScale_ < 0.25f) cpuScale_ = 0.25f;
+        if (cpuScale_ < 0.0625f) cpuScale_ = 0.0625f;
         if (cpuScale_ > 2.0f) cpuScale_ = 2.0f;
         syncGpuScale();
     }

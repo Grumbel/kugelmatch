@@ -23,5 +23,10 @@ script expects to live one level up and `cd` into the game directory.
 | Start | Pause |
 | Select+Start | Quit (gptokeyb) |
 
-Default backend is the GLES2 raytracer (`--gpu`). For the software path, edit
-the launcher line to `./kugelmatch --cpu --fullscreen`.
+Default launch flags (handheld-friendly):
+
+```
+./kugelmatch --gpu --fullscreen --scale 0.25 --bounces 1 --shadows 1
+```
+
+`--scale` may go as low as **0.0625**. For the software path, swap `--gpu` for `--cpu`.

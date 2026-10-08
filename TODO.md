@@ -43,4 +43,4 @@ Base of this work line: `a7bcc21` (Initial checkin)
 Base short: `a7bcc21`
 Previous: `kugelmatch-041.3-gles2-ctor-fix-a7bcc21.bundle`
 Previous: `kugelmatch-042.1-gles2-default-ports-a7bcc21.bundle`
-This: `kugelmatch-042.3-r36s-gles-clamp-launcher-a7bcc21.bundle`
+This: `kugelmatch-042.4-r36s-low-scale-a7bcc21.bundle`
