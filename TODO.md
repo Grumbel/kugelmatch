@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** Fix --scale auto climb (render-busy FPS, anti-ratchet)
+**Tip:** Auto-scale: unpaced swaps + GPU load budget (vsync-safe)
 
 ## Done
 
@@ -49,4 +49,5 @@ Previous: `kugelmatch-047.1-fbo-rt-viewport-a7bcc21.bundle`
 Previous: `kugelmatch-048.1-gl33-vao-a7bcc21.bundle`
 Previous: `kugelmatch-049.1-gpu-rt-opt-a7bcc21.bundle`
 Previous: `kugelmatch-050.1-rt-opt-cont-a7bcc21.bundle`
-This: `kugelmatch-051.1-autoscale-climb-a7bcc21.bundle`
+Previous: `kugelmatch-051.1-autoscale-climb-a7bcc21.bundle`
+This: `kugelmatch-052.1-autoscale-load-a7bcc21.bundle`
