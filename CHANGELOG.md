@@ -8,10 +8,14 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 ## Unreleased (1.2.14-dev)
 
 ### Rendering
+- GPU FBO is sized to the raytrace resolution (not the drawable); viewport is
+  always the full FBO and the blit samples the whole texture. Fixes broken
+  supersampling (scale > 1) and wrong viewport when max-resolution clamp made
+  `rt != drawable`
+- Max-resolution clamp (CPU + GPU) uses a uniform fit so aspect ratio is preserved
 - `--scale auto` uses `glFinish` so FPS tracks the GPU (not the CPU queue);
   starts at scale 0.25 and steps every ~0.75s
-- `--scale auto`: adapt render resolution to target ~60 fps (discrete steps;
-  GPU FBO stays drawable-sized so only the viewport changes)
+- `--scale auto`: adapt render resolution to target ~60 fps
 
 ### Platforms
 - R36S launcher defaults: `--scale 0.25 --bounces 1 --shadows 1` (handheld-friendly)

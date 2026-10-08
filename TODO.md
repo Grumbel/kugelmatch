@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** GLES2 default renderer + multi-platform packaging (Win32/64, WASM, Android, R36S)
+**Tip:** GPU FBO sized to raytrace res (fix scale>1 viewport); aspect-preserving max clamp
 
 ## Done
 
@@ -44,4 +44,5 @@ Base of this work line: `a7bcc21` (Initial checkin)
 Base short: `a7bcc21`
 Previous: `kugelmatch-041.3-gles2-ctor-fix-a7bcc21.bundle`
 Previous: `kugelmatch-042.1-gles2-default-ports-a7bcc21.bundle`
-This: `kugelmatch-046.2-embedded-blit-gl-a7bcc21.bundle`
+Previous: `kugelmatch-046.2-embedded-blit-gl-a7bcc21.bundle`
+This: `kugelmatch-047.1-fbo-rt-viewport-a7bcc21.bundle`
