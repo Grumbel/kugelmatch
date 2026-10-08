@@ -103,6 +103,25 @@ bool Game::initWindowAndBackend() {
     return true;
 }
 
+
+void Game::shutdownBackend() {
+    if (backend_ == RenderBackend::Gpu) {
+        gpuRt_.shutdown();
+    } else {
+        if (texture_) {
+            SDL_DestroyTexture(texture_);
+            texture_ = nullptr;
+        }
+        if (sdlRenderer_) {
+            SDL_DestroyRenderer(sdlRenderer_);
+            sdlRenderer_ = nullptr;
+        }
+        delete[] framebuffer_;
+        framebuffer_ = nullptr;
+        fbW_ = fbH_ = 0;
+    }
+}
+
 bool Game::switchBackend(RenderBackend next) {
     if (next == backend_) {
         return true;
