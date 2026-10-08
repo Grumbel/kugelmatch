@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** camera rig + animation polish + renderer fixes (see CHANGELOG)
+**Tip:** GPU backend ported to OpenGL ES 2.0 (foundation for Web/Android/R36S/Win32)
 
 ## Done
 
@@ -21,6 +21,8 @@ Base of this work line: `a7bcc21` (Initial checkin)
 - [x] Animation polish (countdown, ball spawn-in, paddle recoil, score pop, goal roll-out)
 - [x] Renderer: GPU/CPU last-bounce parity, filtered checkers, one-sided walls, end walls
 - [x] F12 screenshots + headless dev flags (`--shot`, `--fixed-dt`, `--start`, ...)
+
+- [x] GPU backend: OpenGL ES 2.0 (GLSL ES 1.00, VBO, textured FBO blit)
 
 ## Open / follow-ups
 
@@ -34,5 +36,5 @@ Base of this work line: `a7bcc21` (Initial checkin)
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-039.1-coords-cli-a7bcc21.bundle`
-This: `kugelmatch-040.1-camera-polish-a7bcc21.bundle`
+Previous: `kugelmatch-040.1-camera-polish-a7bcc21.bundle`
+This: `kugelmatch-041.1-gles2-gpu-a7bcc21.bundle`

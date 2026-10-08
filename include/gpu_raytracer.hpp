@@ -10,17 +10,19 @@
 #include <unordered_map>
 #include <vector>
 
-// OpenGL fragment-shader raytracer. Full analytic RT — no scene meshes.
-// Optional render scale via FBO (undersample / supersample), then blit to
-// the window drawable. Scale is shared with the CPU path quality presets.
+// OpenGL ES 2.0 fragment-shader raytracer. Full analytic RT — no scene meshes.
+// Optional render scale via FBO (undersample / supersample), then a textured
+// fullscreen triangle blit to the window drawable (GLES2 has no glBlitFramebuffer).
+// Scale is shared with the CPU path quality presets.
 class GpuRaytracer {
 public:
     static constexpr int DEFAULT_WIDTH = 960;
     static constexpr int DEFAULT_HEIGHT = 540;
 
-    // Must match shaders/raytrace.frag
+    // Must match shaders/raytrace.frag (128 boxes keeps uniform pressure
+    // within practical GLES2 / WebGL1 limits for typical scenes).
     static constexpr int MAX_SPHERES = 16;
-    static constexpr int MAX_BOXES = 512;
+    static constexpr int MAX_BOXES = 128;
     static constexpr int MAX_PLANES = 12;
 
     GpuRaytracer() = default;
@@ -47,8 +49,12 @@ public:
 private:
     SDL_Window* window_ = nullptr;
     SDL_GLContext glctx_ = nullptr;
-    unsigned program_ = 0;
-    unsigned vao_ = 0;
+    unsigned program_ = 0;      // raytrace
+    unsigned blitProgram_ = 0;  // FBO → window
+    unsigned vbo_ = 0;          // fullscreen triangle (a_pos)
+    int aPosLoc_ = -1;
+    int aPosBlitLoc_ = -1;
+    int uTexLoc_ = -1;
 
     // FBO for scaled raytrace target (0 when rendering directly to default FB)
     unsigned fbo_ = 0;
@@ -70,9 +76,11 @@ private:
 
     bool loadShaders();
     static unsigned compileShader(unsigned type, const char* source);
+    bool linkProgram(unsigned& outProg, unsigned vs, unsigned fs, const char* label);
     void uploadScene(const Scene& scene, const Camera& cam) const;
     void syncDrawableSize();
     void recomputeRtSize();
     bool ensureFbo(int w, int h);
     void destroyFbo();
+    void drawFullscreenTriangle(int aPosLoc) const;
 };

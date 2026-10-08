@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 #version 100
-// Fullscreen triangle via attribute (GLES2 has no gl_VertexID).
+// Fullscreen triangle for FBO → window scale blit (GLES2 has no glBlitFramebuffer).
 attribute vec2 a_pos;
 varying vec2 v_uv;
 void main() {

@@ -14,7 +14,7 @@ Both backends: window/drawable resolution (resizable).
 Two render backends:
 
 1. **CPU** — multi-threaded software raytracer (SDL2 texture upload)
-2. **GPU** — full raytracing in an OpenGL fragment shader (fullscreen triangle, no scene meshes)
+2. **GPU** — full raytracing in an **OpenGL ES 2.0** fragment shader (fullscreen triangle VBO, no scene meshes; WebGL1-ready)
 
 Both backends share the same scene description and game logic.
 

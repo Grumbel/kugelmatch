@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
-#version 330 core
-// Full raytracer in a fragment shader. No scene meshes — pure analytic intersections.
-in vec2 v_uv;
-out vec4 fragColor;
+#version 100
+// GLES2 / WebGL1 raytracer. No scene meshes — pure analytic intersections.
+precision highp float;
+varying vec2 v_uv;
 
 #define MAX_SPHERES 16
-#define MAX_BOXES   512
+#define MAX_BOXES   128
 #define MAX_PLANES  12
 
 uniform vec3 u_camPos;
@@ -290,5 +290,5 @@ void main() {
     // Exposure + gamma
     col *= max(u_exposure, 0.1);
     col = sqrt(col);
-    fragColor = vec4(col, 1.0);
+    gl_FragColor = vec4(col, 1.0);
 }

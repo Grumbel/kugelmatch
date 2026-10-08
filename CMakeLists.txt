@@ -73,9 +73,30 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "${KUGELMATCH_RELEASE_FLAGS}" CACHE STRING "" FORCE)
 
 find_package(Threads REQUIRED)
-find_package(OpenGL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
+
+# GPU path is OpenGL ES 2.0 (loaded via SDL_GL_GetProcAddress). Link GLESv2
+# when available so drivers resolve symbols; desktop Mesa provides it.
+option(KUGELMATCH_OPENGLES2 "GPU backend uses OpenGL ES 2.0" ON)
+set(KUGELMATCH_GL_LIBS "")
+if(KUGELMATCH_OPENGLES2)
+  find_library(GLESV2_LIBRARY NAMES GLESv2 libGLESv2)
+  if(GLESV2_LIBRARY)
+    list(APPEND KUGELMATCH_GL_LIBS ${GLESV2_LIBRARY})
+    message(STATUS "Linking GLESv2: ${GLESV2_LIBRARY}")
+  else()
+    message(STATUS "GLESv2 not found — relying on SDL_GL_GetProcAddress only")
+  endif()
+  # EGL is often needed alongside GLES on Linux.
+  find_library(EGL_LIBRARY NAMES EGL libEGL)
+  if(EGL_LIBRARY)
+    list(APPEND KUGELMATCH_GL_LIBS ${EGL_LIBRARY})
+  endif()
+else()
+  find_package(OpenGL REQUIRED)
+  list(APPEND KUGELMATCH_GL_LIBS OpenGL::GL)
+endif()
 
 # Generated version header (only source of truth for the string at compile time).
 configure_file(
@@ -111,7 +132,7 @@ target_include_directories(kugelmatch PRIVATE
 
 target_link_libraries(kugelmatch PRIVATE
   ${SDL2_LIBRARIES}
-  OpenGL::GL
+  ${KUGELMATCH_GL_LIBS}
   Threads::Threads
 )
 

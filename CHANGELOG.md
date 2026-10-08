@@ -7,6 +7,12 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 ## Unreleased (1.2.14-dev)
 
+### Rendering
+- GPU backend targets **OpenGL ES 2.0** (GLSL ES 1.00): attribute VBO fullscreen
+  triangle, no VAO / `gl_VertexID`, FBO scale via textured blit (no `glBlitFramebuffer`)
+- Box uniform capacity 512 → 128 (practical GLES2 / WebGL1 uniform budget)
+- CMake links GLESv2/EGL when present; desktop Mesa ES context works with `--gpu`
+
 ### Camera
 - Camera rig: every shot defines an ideal pose and the view follows it through critically damped
   smoothing, so replay start/end, camera-mode changes and the intro hand-over glide instead of cutting
