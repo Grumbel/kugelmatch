@@ -43,7 +43,7 @@ printf '%s\n' '#pragma once' "#define KUGELMATCH_VERSION_STRING \"$GAME_VERSION\
   printf '%s\n' ')GLSL";'
 } > src/jni/src/include/embedded_frag.inc
 
-# SDL2, prebuilt; the game includes <SDL2/SDL.h>.
+# SDL2, prebuilt; the game includes <SDL.h> (headers under SDL/include/SDL2).
 cp "$SDL_PREBUILT_MK" src/jni/SDL/Android.mk
 cp -r "$SDL_ANDROID_LIBS/include" src/jni/SDL/include/SDL2
 chmod -R u+rwX src
