@@ -5,7 +5,7 @@
 #include <string>
 
 struct AppConfig {
-    bool useGpu = false;
+    bool useGpu = true;  // GLES2 fragment-shader RT (default)
     float volume = 0.85f;
     bool mute = false;
     int difficulty = 1;   // 0 easy 1 normal 2 hard

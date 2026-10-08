@@ -92,10 +92,10 @@ int eq(const char* a, const char* b) { return std::strcmp(a, b) == 0; }
 int main(int argc, char** argv) {
     AppConfig cli{};
     unsigned mask = CliOverride::None;
-    // Default backend for construction before config; may be overridden by --cpu/--gpu
+    // Default backend is GPU (GLES2); overridden by --cpu/--gpu or config.
     // or by config file (applied inside Game::init).
     bool backendFromCli = false;
-    RenderBackend backend = RenderBackend::Cpu;
+    RenderBackend backend = RenderBackend::Gpu;
 
     DevOptions dev;
 

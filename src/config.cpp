@@ -2,6 +2,8 @@
 // Copyright 2026 Ingo Ruhnke <grumbel@gmail.com>
 #include "config.hpp"
 
+#include <SDL.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -9,6 +11,9 @@
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 namespace {
 
@@ -22,16 +27,33 @@ bool ensureDir(const std::string& path) {
         return true;
     }
     // mkdir -p: create missing parents first (e.g. ~/.config on a fresh account).
-    const auto slash = path.find_last_of('/');
+    const auto slash = path.find_last_of("/\\");
     if (slash != std::string::npos && slash > 0) {
         ensureDir(path.substr(0, slash));
     }
+#if defined(_WIN32)
+    return _mkdir(path.c_str()) == 0 || dirExists(path);
+#else
     return ::mkdir(path.c_str(), 0755) == 0 || dirExists(path);
+#endif
 }
 
 } // namespace
 
 std::string defaultConfigPath() {
+#if defined(_WIN32) || defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+    // SDL owns the directory layout on these platforms (and IDBFS on the web).
+    char* pref = SDL_GetPrefPath("grumbel", "kugelmatch");
+    if (pref && pref[0]) {
+        std::string base(pref);
+        SDL_free(pref);
+        return base + "config.cfg";
+    }
+    if (pref) {
+        SDL_free(pref);
+    }
+    return "kugelmatch.cfg";
+#else
     const char* xdg = std::getenv("XDG_CONFIG_HOME");
     std::string base;
     if (xdg && xdg[0]) {
@@ -46,6 +68,7 @@ std::string defaultConfigPath() {
     }
     ensureDir(base);
     return base + "/config.cfg";
+#endif
 }
 
 bool loadConfig(AppConfig& cfg, std::string* loadedFrom) {

@@ -9,7 +9,7 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 Base of this work line: `a7bcc21` (Initial checkin)
 
-**Tip:** GPU backend ported to OpenGL ES 2.0 (foundation for Web/Android/R36S/Win32)
+**Tip:** GLES2 default renderer + multi-platform packaging (Win32/64, WASM, Android, R36S)
 
 ## Done
 
@@ -21,8 +21,9 @@ Base of this work line: `a7bcc21` (Initial checkin)
 - [x] Animation polish (countdown, ball spawn-in, paddle recoil, score pop, goal roll-out)
 - [x] Renderer: GPU/CPU last-bounce parity, filtered checkers, one-sided walls, end walls
 - [x] F12 screenshots + headless dev flags (`--shot`, `--fixed-dt`, `--start`, ...)
-
 - [x] GPU backend: OpenGL ES 2.0 (GLSL ES 1.00, VBO, textured FBO blit)
+- [x] GLES2 is the default backend (`--gpu`; `--cpu` still available)
+- [x] Platform packaging skeleton: Win32/64, WASM, Android, R36S (kurvenrausch-style)
 
 ## Open / follow-ups
 
@@ -32,9 +33,12 @@ Base of this work line: `a7bcc21` (Initial checkin)
 - [ ] Geometry edge anti-aliasing (silhouettes of the ball/paddles are still aliased)
 - [ ] Verify the GPU backend on real hardware (only software GL was available while developing)
 - [ ] Emissive material for the ceiling lamp (currently only a specular streak)
+- [ ] End-to-end `nix build` for each port on a machine with network + unfree Android SDK
+- [ ] Touch / gamepad on-screen controls for Android & R36S
+- [ ] Windows `.ico` is currently a placeholder copied from another project — replace with KugelMatch art
 
 ## Bundle naming
 
 Base short: `a7bcc21`
-Previous: `kugelmatch-041.2-gles2-ctor-fix-a7bcc21.bundle`
-This: `kugelmatch-041.3-gles2-ctor-fix-a7bcc21.bundle`
+Previous: `kugelmatch-041.3-gles2-ctor-fix-a7bcc21.bundle`
+This: `kugelmatch-042.1-gles2-default-ports-a7bcc21.bundle`

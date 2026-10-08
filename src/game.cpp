@@ -4,6 +4,10 @@
 #include "glyphs.hpp"
 #include "version.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -247,6 +251,12 @@ bool Game::init(const AppConfig* cli, unsigned cliMask) {
             std::fprintf(stderr, "Loaded config from %s\n", from.c_str());
             applyConfig(cfg);
             wantFullscreen = cfg.fullscreen;
+            if (!(cli && (cliMask & CliOverride::Backend))) {
+                const RenderBackend want = cfg.useGpu ? RenderBackend::Gpu : RenderBackend::Cpu;
+                if (want != backend_) {
+                    switchBackend(want);
+                }
+            }
         }
         // Command line wins over the config file for selected fields.
         if (cli && cliMask) {
@@ -1959,10 +1969,19 @@ void Game::run() {
     if (dev_.autoStart && state_ == GameState::Attract) {
         startMatch();
     }
-    Uint64 freq = SDL_GetPerformanceFrequency();
-    Uint64 last = SDL_GetPerformanceCounter();
-
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop_arg([](void* game) { static_cast<Game*>(game)->frame(); }, this, 0, true);
+#else
     while (running_) {
+        frame();
+    }
+#endif
+}
+
+void Game::frame() {
+    static Uint64 freq = SDL_GetPerformanceFrequency();
+    static Uint64 last = SDL_GetPerformanceCounter();
+
         SDL_Event e;
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) {
@@ -2169,7 +2188,7 @@ void Game::run() {
             }
             if (!ensureCpuFramebuffer(winW, winH)) {
                 running_ = false;
-                break;
+                return;
             }
             // Framebuffer size may differ from window (cpuScale / max clamp)
             cpuRt_.render(scene_, camera_, framebuffer_, fbW_, fbH_);
@@ -2194,5 +2213,4 @@ void Game::run() {
                 }
             }
         }
-    }
 }

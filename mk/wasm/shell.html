@@ -1,0 +1,94 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com> -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>KugelMatch @PROJECT_VERSION_FULL@</title>
+  <style>
+    html, body { margin:0; padding:0; height:100%; background:#0b0b16; color:#c8d0e0;
+      font-family:system-ui,sans-serif; overflow:hidden; }
+    #wrap { display:flex; flex-direction:column; align-items:center; justify-content:center;
+      height:100%; gap:8px; }
+    canvas { background:#000; max-width:100vw; max-height:85vh; outline:none;
+      image-rendering:pixelated; }
+    #status { font-size:14px; opacity:0.8; }
+    #progress { width:min(320px,80vw); height:6px; background:#222; border-radius:3px; }
+    #progress > div { height:100%; width:0; background:#6af; border-radius:3px; }
+    #bar { display:flex; gap:12px; font-size:13px; }
+    #bar button { background:#1a1a2e; color:#c8d0e0; border:1px solid #345; border-radius:4px;
+      padding:6px 12px; cursor:pointer; }
+    #bar button:hover { background:#2a2a4e; }
+    a { color:#8cf; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="canvas" tabindex="-1"></canvas>
+    <div id="status">Downloading…</div>
+    <div id="progress"><div id="progress-bar"></div></div>
+    <div id="bar">
+      <button id="btn-fullscreen" type="button">Fullscreen</button>
+      <span>@PROJECT_VERSION_FULL@ · <a href="@KUGELMATCH_SOURCE_URL@">source</a> · @KUGELMATCH_GIT_REV@</span>
+    </div>
+  </div>
+  <script>
+    var statusElement = document.getElementById('status');
+    var progressBar = document.getElementById('progress-bar');
+    function mountState() {
+      if (typeof FS === 'undefined' || typeof IDBFS === 'undefined') return;
+      FS.mkdir('/persistent');
+      FS.mount(IDBFS, {}, '/persistent');
+      FS.syncfs(true, function(err) {
+        if (err) console.warn('kugelmatch: load state failed', err);
+      });
+    }
+    function toggleFullscreen() {
+      var wrap = document.getElementById('wrap');
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        (wrap.requestFullscreen || wrap.webkitRequestFullscreen).call(wrap);
+      }
+    }
+    var Module = {
+      preRun: [mountState],
+      postRun: [function() {
+        document.getElementById('btn-fullscreen').onclick = toggleFullscreen;
+        document.getElementById('canvas').focus();
+      }],
+      print: function(t) { console.log(t); },
+      printErr: function(t) { console.error(t); },
+      canvas: (function() {
+        var c = document.getElementById('canvas');
+        c.addEventListener('webglcontextlost', function(e) {
+          alert('WebGL context lost — reload the page.');
+          e.preventDefault();
+        }, false);
+        return c;
+      })(),
+      setStatus: function(text) {
+        var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+        if (m) {
+          progressBar.style.width = (parseInt(m[2]) / parseInt(m[4]) * 100) + '%';
+          statusElement.textContent = m[1];
+        } else {
+          statusElement.textContent = text;
+          if (!text) document.getElementById('progress').style.display = 'none';
+        }
+      },
+      totalDependencies: 0,
+      monitorRunDependencies: function(left) {
+        this.totalDependencies = Math.max(this.totalDependencies, left);
+        Module.setStatus(left
+          ? 'Preparing… (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')'
+          : '');
+      }
+    };
+    Module.setStatus('Downloading…');
+    window.onerror = function() {
+      Module.setStatus('Error — see the JavaScript console');
+    };
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

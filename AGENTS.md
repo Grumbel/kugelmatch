@@ -43,6 +43,18 @@ flake.nix         Nix packaging + dev shell
 CMakeLists.txt    Builds both backends into one binary (CLI select)
 ```
 
+## Ports
+
+| Package | Command |
+|---------|---------|
+| Linux | `nix build` / `nix run` |
+| Win64 zip | `nix build .#kugelmatch-win64-zip` |
+| WASM site | `nix build .#kugelmatch-wasm` |
+| R36S PortMaster | `nix build .#kugelmatch-r36s` |
+| Android APK | `nix build .#kugelmatch-android` (unfree SDK) |
+
+Default in-game backend is **GPU (GLES2)**. Use `--cpu` for the software raytracer.
+
 ## Build
 
 ```bash

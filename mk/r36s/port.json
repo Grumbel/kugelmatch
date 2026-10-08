@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "KugelMatch",
+  "items": [
+    {
+      "name": "KugelMatch",
+      "directory": "KugelMatch",
+      "script": "KugelMatch.sh",
+      "description": "Raytraced Pong (OpenGL ES 2.0 GPU raytracer)",
+      "genres": ["arcade", "action"]
+    }
+  ]
+}

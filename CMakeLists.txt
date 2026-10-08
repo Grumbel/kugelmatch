@@ -73,29 +73,44 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "${KUGELMATCH_RELEASE_FLAGS}" CACHE STRING "" FORCE)
 
 find_package(Threads REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2 REQUIRED sdl2)
 
-# GPU path is OpenGL ES 2.0 (loaded via SDL_GL_GetProcAddress). Link GLESv2
-# when available so drivers resolve symbols; desktop Mesa provides it.
+# --- SDL2 (native pkg-config, Emscripten port, or cross-provided paths) ---
+if(EMSCRIPTEN)
+  if(SDL2_ROOT)
+    if(NOT EXISTS "${SDL2_ROOT}/lib/libSDL2.a" OR NOT EXISTS "${SDL2_ROOT}/include/SDL2/SDL.h")
+      message(FATAL_ERROR "SDL2_ROOT=${SDL2_ROOT} missing lib/libSDL2.a or include/SDL2/SDL.h")
+    endif()
+    set(SDL2_INCLUDE_DIRS "${SDL2_ROOT}/include")
+    set(SDL2_LIBRARIES "${SDL2_ROOT}/lib/libSDL2.a")
+  else()
+    add_compile_options(-sUSE_SDL=2)
+    add_link_options(-sUSE_SDL=2)
+    set(SDL2_INCLUDE_DIRS "")
+    set(SDL2_LIBRARIES "")
+  endif()
+elseif(NOT SDL2_LIBRARIES)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(SDL2 REQUIRED sdl2)
+endif()
+
+# GPU path is OpenGL ES 2.0 (SDL_GL_GetProcAddress). Skip desktop GL on GLES targets.
 option(KUGELMATCH_OPENGLES2 "GPU backend uses OpenGL ES 2.0" ON)
 set(KUGELMATCH_GL_LIBS "")
-if(KUGELMATCH_OPENGLES2)
-  find_library(GLESV2_LIBRARY NAMES GLESv2 libGLESv2)
-  if(GLESV2_LIBRARY)
-    list(APPEND KUGELMATCH_GL_LIBS ${GLESV2_LIBRARY})
-    message(STATUS "Linking GLESv2: ${GLESV2_LIBRARY}")
+if(NOT EMSCRIPTEN AND NOT ANDROID)
+  if(KUGELMATCH_OPENGLES2)
+    find_library(GLESV2_LIBRARY NAMES GLESv2 libGLESv2)
+    if(GLESV2_LIBRARY)
+      list(APPEND KUGELMATCH_GL_LIBS ${GLESV2_LIBRARY})
+      message(STATUS "Linking GLESv2: ${GLESV2_LIBRARY}")
+    endif()
+    find_library(EGL_LIBRARY NAMES EGL libEGL)
+    if(EGL_LIBRARY)
+      list(APPEND KUGELMATCH_GL_LIBS ${EGL_LIBRARY})
+    endif()
   else()
-    message(STATUS "GLESv2 not found — relying on SDL_GL_GetProcAddress only")
+    find_package(OpenGL REQUIRED)
+    list(APPEND KUGELMATCH_GL_LIBS OpenGL::GL)
   endif()
-  # EGL is often needed alongside GLES on Linux.
-  find_library(EGL_LIBRARY NAMES EGL libEGL)
-  if(EGL_LIBRARY)
-    list(APPEND KUGELMATCH_GL_LIBS ${EGL_LIBRARY})
-  endif()
-else()
-  find_package(OpenGL REQUIRED)
-  list(APPEND KUGELMATCH_GL_LIBS OpenGL::GL)
 endif()
 
 # Generated version header (only source of truth for the string at compile time).
@@ -138,30 +153,78 @@ target_link_libraries(kugelmatch PRIVATE
 
 target_compile_options(kugelmatch PRIVATE ${SDL2_CFLAGS_OTHER})
 
-# --- Install (Linux packaging) ---
-include(GNUInstallDirs)
+if(WIN32)
+  enable_language(RC)
+  target_compile_definitions(kugelmatch PRIVATE _WIN32_WINNT=0x0601)
+  set_target_properties(kugelmatch PROPERTIES WIN32_EXECUTABLE TRUE)
+  if(MINGW)
+    target_link_options(kugelmatch PRIVATE -static-libgcc -static-libstdc++)
+  endif()
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data/kugelmatch.rc.in")
+    set(KUGELMATCH_ICO "${CMAKE_CURRENT_SOURCE_DIR}/data/icons/kugelmatch.ico")
+    configure_file(data/kugelmatch.rc.in ${CMAKE_CURRENT_BINARY_DIR}/kugelmatch.rc @ONLY)
+    target_sources(kugelmatch PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kugelmatch.rc)
+  endif()
+endif()
 
-install(TARGETS kugelmatch
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+if(EMSCRIPTEN)
+  if(NOT DEFINED KUGELMATCH_GIT_REV)
+    execute_process(COMMAND git rev-parse --short HEAD
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    OUTPUT_VARIABLE KUGELMATCH_GIT_REV OUTPUT_STRIP_TRAILING_WHITESPACE
+                    RESULT_VARIABLE _git_status ERROR_QUIET)
+    if(NOT _git_status EQUAL 0 OR KUGELMATCH_GIT_REV STREQUAL "")
+      set(KUGELMATCH_GIT_REV "unknown")
+    endif()
+  endif()
+  set(KUGELMATCH_SOURCE_URL "https://github.com/Grumbel/kugelmatch")
+  configure_file(mk/wasm/shell.html ${CMAKE_CURRENT_BINARY_DIR}/shell.html @ONLY)
+  set_target_properties(kugelmatch PROPERTIES SUFFIX ".html")
+  target_link_options(kugelmatch PRIVATE
+    --shell-file ${CMAKE_CURRENT_BINARY_DIR}/shell.html
+    -sALLOW_MEMORY_GROWTH=1
+    -sMAX_WEBGL_VERSION=2
+    -sMIN_WEBGL_VERSION=1
+    -sFULL_ES2=1
+    -sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']
+    -sFORCE_FILESYSTEM=1
+    -lidbfs.js
+  )
+  install(FILES
+    $<TARGET_FILE_DIR:kugelmatch>/kugelmatch.html
+    $<TARGET_FILE_DIR:kugelmatch>/kugelmatch.js
+    $<TARGET_FILE_DIR:kugelmatch>/kugelmatch.wasm
+    DESTINATION .
+  )
+  # Consumers can copy kugelmatch.html to index.html for static hosting.
+endif()
 
-install(DIRECTORY shaders/
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/kugelmatch/shaders
-  FILES_MATCHING PATTERN "*.vert" PATTERN "*.frag"
-)
+# --- Install (Linux packaging; skipped for Emscripten which installs the site above) ---
+if(NOT EMSCRIPTEN AND NOT ANDROID)
+  include(GNUInstallDirs)
 
-install(FILES man/kugelmatch.6
-  DESTINATION ${CMAKE_INSTALL_MANDIR}/man6
-)
+  install(TARGETS kugelmatch
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  )
 
-install(FILES data/kugelmatch.desktop
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
-)
+  install(DIRECTORY shaders/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/kugelmatch/shaders
+    FILES_MATCHING PATTERN "*.vert" PATTERN "*.frag"
+  )
 
-install(FILES data/icons/hicolor/scalable/apps/kugelmatch.svg
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
-)
+  install(FILES man/kugelmatch.6
+    DESTINATION ${CMAKE_INSTALL_MANDIR}/man6
+  )
 
-install(FILES data/metainfo/org.kugelmatch.KugelMatch.metainfo.xml
-  DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
-)
+  install(FILES data/kugelmatch.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+  )
+
+  install(FILES data/icons/hicolor/scalable/apps/kugelmatch.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+  )
+
+  install(FILES data/metainfo/org.kugelmatch.KugelMatch.metainfo.xml
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
+  )
+endif()

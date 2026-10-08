@@ -66,6 +66,8 @@ public:
     bool init(const AppConfig* cli = nullptr, unsigned cliMask = 0);
     void applyCliOverrides(const AppConfig& cfg, unsigned mask);
     void run();
+    /** One simulation + render tick (also the Emscripten main-loop body). */
+    void frame();
     void shutdown();
 
 private:

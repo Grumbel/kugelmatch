@@ -7,6 +7,12 @@ SPDX-FileCopyrightText: 2026 Ingo Ruhnke <grumbel@gmail.com>
 
 ## Unreleased (1.2.14-dev)
 
+### Platforms
+- Default renderer is **GPU (OpenGL ES 2.0)**; `--cpu` selects the software path
+- Multi-platform packaging (kurvenrausch-style): Windows MinGW zips, Emscripten WASM site,
+  Android APK, R36S/ArkOS PortMaster tree (`nix/`, `mk/`)
+- Emscripten main loop; config dir via `SDL_GetPrefPath` on Windows/Android/Web
+
 ### Rendering
 - GPU backend targets **OpenGL ES 2.0** (GLSL ES 1.00): attribute VBO fullscreen
   triangle, no VAO / `gl_VertexID`, FBO scale via textured blit (no `glBlitFramebuffer`)
