@@ -11,12 +11,17 @@
       font-family:system-ui,sans-serif; overflow:hidden; }
     #wrap { display:flex; flex-direction:column; align-items:center; justify-content:center;
       height:100%; gap:8px; }
-    canvas { background:#000; max-width:100vw; max-height:85vh; outline:none;
-      image-rendering:pixelated; }
+    /* Drawing-buffer size comes from width/height attributes (SDL / Module);
+       CSS only scales the element on screen. Never leave attributes at 0. */
+    canvas#canvas {
+      background:#000; outline:none;
+      width:min(960px, 100vw); height:auto; max-height:85vh;
+      image-rendering:pixelated; aspect-ratio:16/9;
+    }
     #status { font-size:14px; opacity:0.8; }
     #progress { width:min(320px,80vw); height:6px; background:#222; border-radius:3px; }
     #progress > div { height:100%; width:0; background:#6af; border-radius:3px; }
-    #bar { display:flex; gap:12px; font-size:13px; }
+    #bar { display:flex; gap:12px; font-size:13px; align-items:center; }
     #bar button { background:#1a1a2e; color:#c8d0e0; border:1px solid #345; border-radius:4px;
       padding:6px 12px; cursor:pointer; }
     #bar button:hover { background:#2a2a4e; }
@@ -25,7 +30,8 @@
 </head>
 <body>
   <div id="wrap">
-    <canvas id="canvas" tabindex="-1"></canvas>
+    <canvas id="canvas" width="960" height="540" tabindex="-1"
+            oncontextmenu="event.preventDefault()"></canvas>
     <div id="status">Downloading…</div>
     <div id="progress"><div id="progress-bar"></div></div>
     <div id="bar">
@@ -38,7 +44,7 @@
     var progressBar = document.getElementById('progress-bar');
     function mountState() {
       if (typeof FS === 'undefined' || typeof IDBFS === 'undefined') return;
-      FS.mkdir('/persistent');
+      try { FS.mkdir('/persistent'); } catch (e) {}
       FS.mount(IDBFS, {}, '/persistent');
       FS.syncfs(true, function(err) {
         if (err) console.warn('kugelmatch: load state failed', err);
@@ -48,45 +54,59 @@
       var wrap = document.getElementById('wrap');
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
         (wrap.requestFullscreen || wrap.webkitRequestFullscreen).call(wrap);
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
       }
     }
     var Module = {
       preRun: [mountState],
       postRun: [function() {
         document.getElementById('btn-fullscreen').onclick = toggleFullscreen;
-        document.getElementById('canvas').focus();
-      }],
-      print: function(t) { console.log(t); },
-      printErr: function(t) { console.error(t); },
-      canvas: (function() {
         var c = document.getElementById('canvas');
-        c.addEventListener('webglcontextlost', function(e) {
+        c.focus();
+        // If SDL left the drawing buffer at 0×0, force a sane size.
+        if (!c.width || !c.height) {
+          c.width = 960;
+          c.height = 540;
+          console.warn('kugelmatch: canvas was 0×0; forced 960×540');
+        }
+      }],
+      print: function(text) { console.log(text); },
+      printErr: function(text) { console.error(text); },
+      canvas: (function() {
+        var canvas = document.getElementById('canvas');
+        canvas.addEventListener('webglcontextlost', function(e) {
           alert('WebGL context lost — reload the page.');
           e.preventDefault();
         }, false);
-        return c;
+        return canvas;
       })(),
       setStatus: function(text) {
+        if (!text) {
+          statusElement.style.display = 'none';
+          document.getElementById('progress').style.display = 'none';
+          return;
+        }
         var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
         if (m) {
           progressBar.style.width = (parseInt(m[2]) / parseInt(m[4]) * 100) + '%';
           statusElement.textContent = m[1];
         } else {
           statusElement.textContent = text;
-          if (!text) document.getElementById('progress').style.display = 'none';
         }
       },
       totalDependencies: 0,
       monitorRunDependencies: function(left) {
         this.totalDependencies = Math.max(this.totalDependencies, left);
         Module.setStatus(left
-          ? 'Preparing… (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')'
+          ? ('Preparing… (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')')
           : '');
       }
     };
     Module.setStatus('Downloading…');
     window.onerror = function() {
-      Module.setStatus('Error — see the JavaScript console');
+      Module.setStatus('Something went wrong — see the JavaScript console');
+      Module.setStatus = function(text) { if (text) console.error('[status] ' + text); };
     };
   </script>
   {{{ SCRIPT }}}

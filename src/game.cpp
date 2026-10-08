@@ -56,13 +56,28 @@ bool Game::initWindowAndBackend() {
             dev_.windowW > 0 ? dev_.windowW : GpuRaytracer::DEFAULT_WIDTH,
             dev_.windowH > 0 ? dev_.windowH : GpuRaytracer::DEFAULT_HEIGHT,
             winFlags);
-        if (!window_) {
+                if (!window_) {
             std::fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
             return false;
         }
+#ifdef __EMSCRIPTEN__
+        // Ensure the canvas drawing buffer is non-zero (shell defaults to 960×540;
+        // SDL should set it, but a 0×0 buffer yields a silent blank page).
+        {
+            int cw = 0, ch = 0;
+            SDL_GetWindowSize(window_, &cw, &ch);
+            if (cw < 1 || ch < 1) {
+                cw = GpuRaytracer::DEFAULT_WIDTH;
+                ch = GpuRaytracer::DEFAULT_HEIGHT;
+                SDL_SetWindowSize(window_, cw, ch);
+            }
+            std::fprintf(stderr, "Emscripten canvas %dx%d\n", cw, ch);
+        }
+#endif
     }
 
     if (backend_ == RenderBackend::Gpu) {
+ {
         if (!gpuRt_.init(window_)) {
             std::fprintf(stderr, "GPU raytracer init failed.\n");
             return false;

@@ -196,12 +196,15 @@ if(EMSCRIPTEN)
   target_link_options(kugelmatch PRIVATE
     --shell-file ${CMAKE_CURRENT_BINARY_DIR}/shell.html
     -sALLOW_MEMORY_GROWTH=1
+    # Emscripten 6: growable ArrayBuffer breaks TextDecoder → blank page
+    -sGROWABLE_ARRAYBUFFERS=0
     -sMAX_WEBGL_VERSION=2
     -sMIN_WEBGL_VERSION=1
     -sFULL_ES2=1
-    -sEXPORTED_RUNTIME_METHODS=['ccall','cwrap']
     -sFORCE_FILESYSTEM=1
     -lidbfs.js
+    -sEXPORTED_RUNTIME_METHODS=FS,ccall,cwrap
+    -sENVIRONMENT=web
   )
   install(FILES
     $<TARGET_FILE_DIR:kugelmatch>/kugelmatch.html
