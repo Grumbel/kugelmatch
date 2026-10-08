@@ -91,11 +91,13 @@ private:
     int cpuMaxHeight_ = 720;
     float cpuScale_ = 1.0f;
     bool autoScale_ = false;
-    float autoScaleCooldown_ = 0.0f;  // seconds until next scale step
+    float autoScaleCooldown_ = 0.0f;  // seconds until next adjustment
     static constexpr float kAutoScaleDefaultTargetFps = 60.0f;
     static constexpr float kAutoScaleMin = 0.0625f;
-    static constexpr float kAutoScaleMax = 1.0f;
-    static constexpr float kAutoScaleInterval = 0.35f; // settle between steps
+    static constexpr float kAutoScaleMax = 2.0f;
+    static constexpr float kAutoScaleInterval = 0.40f; // settle before re-measure
+    static constexpr float kAutoScaleDeadZone = 0.06f; // |fps/target - 1| below this: hold
+    static constexpr float kAutoScaleMaxStep = 0.08f;  // max relative change per tick
     bool replayTowardPlayer_ = false; // ball exited near player end
 
     SDL_Window* window_ = nullptr;

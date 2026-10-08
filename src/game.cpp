@@ -1948,34 +1948,27 @@ void Game::updateAutoScale(float dt) {
     const float target = (targetFps_ > 0)
         ? static_cast<float>(targetFps_)
         : kAutoScaleDefaultTargetFps;
-    const float lo = target * 0.90f;
-    const float hi = target * 1.15f;
-    float next = cpuScale_;
-    if (fpsSmooth_ < lo) {
-        if (cpuScale_ > 0.5f + 1e-6f) {
-            next = 0.5f;
-        } else if (cpuScale_ > 0.25f + 1e-6f) {
-            next = 0.25f;
-        } else if (cpuScale_ > 0.125f + 1e-6f) {
-            next = 0.125f;
-        } else {
-            next = kAutoScaleMin;
-        }
-    } else if (fpsSmooth_ > hi) {
-        if (cpuScale_ < 0.125f - 1e-6f) {
-            next = 0.125f;
-        } else if (cpuScale_ < 0.25f - 1e-6f) {
-            next = 0.25f;
-        } else if (cpuScale_ < 0.5f - 1e-6f) {
-            next = 0.5f;
-        } else if (cpuScale_ < kAutoScaleMax - 1e-6f) {
-            next = kAutoScaleMax;
-        }
-    } else {
-        autoScaleCooldown_ = kAutoScaleInterval * 0.5f;
+    const float ratio = fpsSmooth_ / target; // 1 = on target
+    if (std::fabs(ratio - 1.0f) < kAutoScaleDeadZone) {
+        // Close enough — hold so we do not oscillate around the set point.
+        autoScaleCooldown_ = kAutoScaleInterval;
         return;
     }
-    if (std::fabs(next - cpuScale_) < 1e-6f) {
+    // Cost is proportional to pixel count (~ scale²). Ideal scale for `target`
+    // fps from the measured rate:
+    //   scale_ideal / scale = sqrt(fps / target) = sqrt(ratio)
+    float ideal = cpuScale_ * std::sqrt(std::max(0.05f, ratio));
+    // Move only part-way toward ideal each tick (damping).
+    float next = cpuScale_ + (ideal - cpuScale_) * 0.45f;
+    // Cap relative step size so one noisy sample cannot jump too far.
+    const float lo = cpuScale_ * (1.0f - kAutoScaleMaxStep);
+    const float hi = cpuScale_ * (1.0f + kAutoScaleMaxStep);
+    if (next < lo) next = lo;
+    if (next > hi) next = hi;
+    if (next < kAutoScaleMin) next = kAutoScaleMin;
+    if (next > kAutoScaleMax) next = kAutoScaleMax;
+    // Ignore microscopic changes (avoids FB churn / log spam).
+    if (std::fabs(next - cpuScale_) < 0.004f) {
         autoScaleCooldown_ = kAutoScaleInterval;
         return;
     }
@@ -1985,7 +1978,8 @@ void Game::updateAutoScale(float dt) {
         ensureCpuFramebuffer(appliedWinW_, appliedWinH_);
     }
     autoScaleCooldown_ = kAutoScaleInterval;
-    std::fprintf(stderr, "auto-scale → %.4f (%.0f fps)\n", cpuScale_, fpsSmooth_);
+    std::fprintf(stderr, "auto-scale → %.4f (%.0f fps, target %.0f)\n",
+                 cpuScale_, fpsSmooth_, target);
 }
 
 void Game::run() {
