@@ -122,15 +122,19 @@
           kugelmatch-win64-zip = windows.kugelmatch-win64-zip;
           kugelmatch-win32-zip = windows.kugelmatch-win32-zip;
           kugelmatch-wasm = wasm.kugelmatchWasm;
-          kugelmatch-wasm-serve = wasm.serveApp;
           kugelmatch-r36s = r36s.portmaster;
           kugelmatch-r36s-zip = r36s.portmasterZip;
           kugelmatch-android = android.apk;
         };
 
-        apps.default = {
-          type = "app";
-          program = "${kugelmatch}/bin/kugelmatch";
+        # nix run .#kugelmatch-wasm  → serve the site and open a browser (like kurvenrausch)
+        apps = {
+          default = {
+            type = "app";
+            program = "${kugelmatch}/bin/kugelmatch";
+          };
+          kugelmatch-wasm = wasm.serveApp;
+          install-android-kugelmatch = android.installApp;
         };
 
         devShells.default = pkgs.mkShell {

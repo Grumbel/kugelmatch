@@ -49,7 +49,7 @@ CMakeLists.txt    Builds both backends into one binary (CLI select)
 |---------|---------|
 | Linux | `nix build` / `nix run` |
 | Win64 zip | `nix build .#kugelmatch-win64-zip` |
-| WASM site | `nix build .#kugelmatch-wasm` |
+| WASM site | `nix build .#kugelmatch-wasm` / `nix run .#kugelmatch-wasm` (serve + open) |
 | R36S PortMaster | `nix build .#kugelmatch-r36s` |
 | Android APK | `nix build .#kugelmatch-android` (unfree SDK) |
 
