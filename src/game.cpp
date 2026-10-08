@@ -2254,11 +2254,11 @@ void Game::frame() {
             gpuRt_.render(scene_, camera_);
             handleScreenshots();
             gpuRt_.present();
-            // Swap returns as soon as the driver queues the frame. Without a GPU
-            // sync, auto-scale sees multi-kHz "FPS" while the screen is ~3 Hz.
-            if (autoScale_) {
-                gpuRt_.finish();
-            }
+            // Swap often returns as soon as the driver queues the frame (broken
+            // or absent vsync on some GLES drivers). Always finish so the CPU
+            // does not free-spin ahead of the GPU — keeps dt/FPS honest and
+            // avoids burning a core while the Mali is still drawing.
+            gpuRt_.finish();
         } else {
             // Render at last settled window size (not live drag size)
             int winW = appliedWinW_ > 0 ? appliedWinW_ : 1;

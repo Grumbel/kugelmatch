@@ -32,7 +32,7 @@ public:
     void shutdown();
     void render(const Scene& scene, const Camera& cam);
     void present();
-    /** Block until GPU work is done (for reliable frame timing / auto-scale). */
+    /** Block until GPU work is done (pace CPU to GPU when swap does not). */
     void finish();
     /** Read back the window's back buffer (call after render(), before present()).
      *  Output is 0xAARRGGBB, top row first. */
