@@ -132,6 +132,9 @@ private:
     int pointsToWin_ = 11;
 
     bool running_ = false;
+    SDL_GameController* pad0_ = nullptr; // player 1 (near paddle)
+    SDL_GameController* pad1_ = nullptr; // player 2 (far paddle), optional
+    static constexpr float kPadDeadzone = 0.28f;
 
     DevOptions dev_;
     long frameIndex_ = 0;
@@ -215,6 +218,12 @@ private:
     void update(float dt);
     void updateGoalDrift(float dt);
     void handleInput(float dt);
+    void openGamepads();
+    void closeGamepads();
+    void onControllerEvent(const SDL_Event& e);
+    /** Combined axis in [-1,1] for paddle i (0 = near, 1 = far). */
+    float gamepadAxisX(int player) const;
+    bool gamepadPressed(int player, SDL_GameControllerButton btn) const;
     void buildScene();
     void addScoreboard(Scene& scene) const;
     void addOptionsGeometry(Scene& scene) const;

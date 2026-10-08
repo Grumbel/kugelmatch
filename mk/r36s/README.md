@@ -18,7 +18,9 @@ script expects to live one level up and `cd` into the game directory.
 
 | Key / pad | Action |
 |-----------|--------|
-| D-pad / stick | Move paddle |
+| D-pad / left stick | Move paddle |
+| A / Start | Start / confirm |
+| B / Select | Pause / back |
 | A / South | Start match / confirm |
 | Start | Pause |
 | Select+Start | Quit (gptokeyb) |

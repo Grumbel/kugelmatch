@@ -244,7 +244,7 @@ void Game::flushPendingResize(float dt) {
 }
 
 bool Game::init(const AppConfig* cli, unsigned cliMask) {
-    Uint32 sdlFlags = SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO;
+    Uint32 sdlFlags = SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER;
     if (SDL_Init(sdlFlags) != 0) {
         std::fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return false;
@@ -257,6 +257,7 @@ bool Game::init(const AppConfig* cli, unsigned cliMask) {
     if (!audio_.init()) {
         std::fprintf(stderr, "Warning: audio init failed; continuing without sound.\n");
     }
+    openGamepads();
 
     bool wantFullscreen = false;
     {
@@ -318,6 +319,7 @@ bool Game::init(const AppConfig* cli, unsigned cliMask) {
 
 void Game::shutdown() {
     persistConfig();
+    closeGamepads();
     audio_.shutdown();
     shutdownBackend();
     if (window_) {
@@ -797,6 +799,136 @@ void Game::enterAttract() {
     ballVX_ *= 0.7f;
 }
 
+
+void Game::openGamepads() {
+    closeGamepads();
+    const int n = SDL_NumJoysticks();
+    for (int i = 0; i < n; ++i) {
+        if (!SDL_IsGameController(i)) {
+            continue;
+        }
+        SDL_GameController* c = SDL_GameControllerOpen(i);
+        if (!c) {
+            continue;
+        }
+        if (!pad0_) {
+            pad0_ = c;
+            std::fprintf(stderr, "Gamepad P1: %s\n", SDL_GameControllerName(c));
+        } else if (!pad1_) {
+            pad1_ = c;
+            std::fprintf(stderr, "Gamepad P2: %s\n", SDL_GameControllerName(c));
+        } else {
+            SDL_GameControllerClose(c);
+        }
+    }
+}
+
+void Game::closeGamepads() {
+    if (pad0_) {
+        SDL_GameControllerClose(pad0_);
+        pad0_ = nullptr;
+    }
+    if (pad1_) {
+        SDL_GameControllerClose(pad1_);
+        pad1_ = nullptr;
+    }
+}
+
+float Game::gamepadAxisX(int player) const {
+    SDL_GameController* pad = (player == 0) ? pad0_ : (pad1_ ? pad1_ : nullptr);
+    // Single pad in 2P: P2 reads the right stick of pad0.
+    const bool rightStick = (player == 1 && pad1_ == nullptr && pad0_ != nullptr);
+    if (rightStick) {
+        pad = pad0_;
+    }
+    if (!pad) {
+        return 0.0f;
+    }
+    const SDL_GameControllerAxis axis = rightStick ? SDL_CONTROLLER_AXIS_RIGHTX
+                                                   : SDL_CONTROLLER_AXIS_LEFTX;
+    const Sint16 raw = SDL_GameControllerGetAxis(pad, axis);
+    float v = static_cast<float>(raw) / 32767.0f;
+    if (v > 1.0f) v = 1.0f;
+    if (v < -1.0f) v = -1.0f;
+    if (std::fabs(v) < kPadDeadzone) {
+        v = 0.0f;
+    } else {
+        // Rescale so the edge of the deadzone maps to 0.
+        const float s = (std::fabs(v) - kPadDeadzone) / (1.0f - kPadDeadzone);
+        v = (v < 0.0f) ? -s : s;
+    }
+    // D-pad (player 0 or dedicated pad1 only)
+    if (!rightStick) {
+        if (SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_DPAD_LEFT)) {
+            v = -1.0f;
+        }
+        if (SDL_GameControllerGetButton(pad, SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) {
+            v = 1.0f;
+        }
+    }
+    return v;
+}
+
+bool Game::gamepadPressed(int player, SDL_GameControllerButton btn) const {
+    SDL_GameController* pad = (player == 0) ? pad0_ : (pad1_ ? pad1_ : pad0_);
+    if (!pad) {
+        return false;
+    }
+    return SDL_GameControllerGetButton(pad, btn) != 0;
+}
+
+void Game::onControllerEvent(const SDL_Event& e) {
+    if (e.type == SDL_CONTROLLERDEVICEADDED) {
+        openGamepads();
+        return;
+    }
+    if (e.type == SDL_CONTROLLERDEVICEREMOVED) {
+        openGamepads();
+        return;
+    }
+    if (e.type != SDL_CONTROLLERBUTTONDOWN) {
+        return;
+    }
+    const SDL_GameControllerButton b = static_cast<SDL_GameControllerButton>(e.cbutton.button);
+    // Start / A: confirm (same as Space)
+    if (b == SDL_CONTROLLER_BUTTON_A || b == SDL_CONTROLLER_BUTTON_START) {
+        if (state_ == GameState::Attract || state_ == GameState::GameOver) {
+            startMatch();
+        } else if (state_ == GameState::Intro) {
+            state_ = GameState::Play;
+            introT_ = 1.0f;
+        } else if (state_ == GameState::Pause) {
+            state_ = GameState::Play;
+        } else if (state_ == GameState::Play && serveTimer_ <= 0.0f && replayTimer_ > 0.0f) {
+            replayTimer_ = 0.0f;
+            queueServe(nextServeTowardPlayer_);
+            audio_.playSoftThud(1.0f, 0.2f);
+        }
+        return;
+    }
+    // B / Back: escape-like
+    if (b == SDL_CONTROLLER_BUTTON_B || b == SDL_CONTROLLER_BUTTON_BACK) {
+        if (state_ == GameState::Play) {
+            state_ = GameState::Pause;
+        } else if (state_ == GameState::Pause) {
+            enterAttract();
+        } else if (state_ == GameState::Attract) {
+            running_ = false;
+        } else if (state_ == GameState::GameOver) {
+            enterAttract();
+        } else if (state_ == GameState::Intro) {
+            state_ = GameState::Play;
+            introT_ = 1.0f;
+        }
+        return;
+    }
+    // Y: toggle 2P (keyboard 4)
+    if (b == SDL_CONTROLLER_BUTTON_Y) {
+        toggleTwoPlayer();
+        return;
+    }
+}
+
 void Game::handleInput(float dt) {
     const Uint8* keys = SDL_GetKeyboardState(nullptr);
 
@@ -820,7 +952,7 @@ void Game::handleInput(float dt) {
         return;
     }
 
-    // Play: P1 uses A/D (and arrows if single-player).
+    // Play: P1 uses A/D (and arrows if single-player), plus left stick / D-pad.
     // Paddle camera looks down +Z → screen-left is -X.
     float speed = 9.0f;
     float half = FIELD_W * 0.5f - PADDLE_W * 0.5f;
@@ -831,6 +963,12 @@ void Game::handleInput(float dt) {
     if (keys[SDL_SCANCODE_D]) {
         playerX_ += speed * dt;
     }
+    {
+        const float ax = gamepadAxisX(0);
+        if (ax != 0.0f) {
+            playerX_ += ax * speed * dt;
+        }
+    }
     if (!twoPlayer_) {
         if (keys[SDL_SCANCODE_LEFT]) {
             playerX_ -= speed * dt;
@@ -839,12 +977,16 @@ void Game::handleInput(float dt) {
             playerX_ += speed * dt;
         }
     } else {
-        // P2 shares the same screen axes
+        // P2: arrows + second pad (or pad0 right stick if only one controller)
         if (keys[SDL_SCANCODE_LEFT]) {
             player2X_ -= speed * dt;
         }
         if (keys[SDL_SCANCODE_RIGHT]) {
             player2X_ += speed * dt;
+        }
+        const float ax2 = gamepadAxisX(1);
+        if (ax2 != 0.0f) {
+            player2X_ += ax2 * speed * dt;
         }
         player2X_ = std::max(-half, std::min(half, player2X_));
     }
@@ -2009,6 +2151,11 @@ void Game::frame() {
                  e.window.event == SDL_WINDOWEVENT_RESIZED)) {
                 // Debounce: do not rebuild FB/FBO on every drag sample
                 noteWindowSize(e.window.data1, e.window.data2);
+            }
+            if (e.type == SDL_CONTROLLERDEVICEADDED ||
+                e.type == SDL_CONTROLLERDEVICEREMOVED ||
+                e.type == SDL_CONTROLLERBUTTONDOWN) {
+                onControllerEvent(e);
             }
             if (e.type == SDL_KEYUP) {
                 switch (e.key.keysym.sym) {
